@@ -1,0 +1,7 @@
+node_modules
+api
+app
+metadata
+*.db
+*.env
+.env
