@@ -1,4 +1,4 @@
-import { PortalAbstractStream } from '../portal_abstract_stream';
+import { PortalAbstractStream } from '@sqd-pipes/core';
 
 export class TestStream extends PortalAbstractStream<any> {
   async stream(): Promise<ReadableStream<any>> {
