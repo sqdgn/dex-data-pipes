@@ -1,11 +1,9 @@
-import path from 'node:path';
+import { ClickhouseState } from '@sqd-pipes/core';
 import { EvmSwapStream } from '../../../streams/evm_swaps/evm_swap_stream';
+import { PriceExtendStream } from '../../../streams/evm_swaps/price_extend_stream';
 import { createClickhouseClient, ensureTables, toUnixTime } from '../../clickhouse';
 import { createLogger } from '../../utils';
 import { getConfig } from '../config';
-import { Network } from 'streams/evm_swaps/networks';
-import { PriceExtendStream } from '../../../streams/evm_swaps/price_extend_stream';
-import { ClickhouseState } from '@sqd-pipes/core';
 
 const config = getConfig();
 
