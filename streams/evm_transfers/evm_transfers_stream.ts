@@ -35,15 +35,20 @@ export class EvmTransfersStream extends PortalAbstractStream<Erc20Event, Args> {
   }
 
   private holdersCallback = async (timestamp: number, holders: TokenHolders[]) => {
-    console.log('\nHolders for:', new Date(timestamp).toLocaleString());
-    const whitelist = [
-      '0xe55fee191604cdbeb874f87a28ca89aed401c303',
-      '0xd4a0e0b9149bcee3c920d2e00b5de09138fd8bb7',
-      '0x31e3cf5e177cd56a4ed5a010edd4e5da4506e2cf',
-    ];
-    holders
-      .filter((h) => whitelist.includes(h.token))
-      .forEach((h) => console.log(`${h.token}: ${h.holderCount}`));
+    console.log(
+      '\nHolders for:',
+      new Date(timestamp).toLocaleString(),
+      'total tokens:',
+      holders.length,
+    );
+    // const whitelist = [
+    //   '0xe55fee191604cdbeb874f87a28ca89aed401c303',
+    //   '0xd4a0e0b9149bcee3c920d2e00b5de09138fd8bb7',
+    //   '0x31e3cf5e177cd56a4ed5a010edd4e5da4506e2cf',
+    // ];
+    // holders
+    //   .filter((h) => whitelist.includes(h.token))
+    //   .forEach((h) => console.log(`${h.token}: ${h.holderCount}`));
     await new Promise((r) => r(1));
   };
 

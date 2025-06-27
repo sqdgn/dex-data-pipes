@@ -25,6 +25,26 @@ export class HolderCounter {
   private db: DatabaseSync;
   private statements: Record<string, StatementSync>;
   private firstMintsCount = 0;
+  private state: HolderCounterState;
+  private metrics = {
+    getFirstFrom: { total: 0, count: 0 },
+    setFirstFrom: { total: 0, count: 0 },
+    getBalance: { total: 0, count: 0 },
+    setBalance: { total: 0, count: 0 },
+    getHolderCount: { total: 0, count: 0 },
+    setHolderCount: { total: 0, count: 0 },
+    getAllHolders: { total: 0, count: 0 },
+    getState: { total: 0, count: 0 },
+    updateStateProcessed: { total: 0, count: 0 },
+    updateState: { total: 0, count: 0 },
+    setLastTransferTimestamp: { total: 0, count: 0 },
+  };
+  private lastPrint = 0;
+  private transferMetrics = {
+    totalTransfers: 0,
+    lastTransferCount: 0,
+    lastTransferTime: Date.now(),
+  };
 
   constructor(
     private dbPath: string,
@@ -36,6 +56,7 @@ export class HolderCounter {
       module: 'HolderCounter',
     });
     this.initDb();
+    this.state = this.getState();
   }
 
   private initDb(): void {
@@ -48,6 +69,11 @@ export class HolderCounter {
       CREATE TABLE IF NOT EXISTS first_transfer_from (
         token TEXT PRIMARY KEY,
         firstFrom TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS last_token_transfer (
+        token TEXT PRIMARY KEY,
+        lastTransferTime INTEGER NOT NULL
       );
 
       CREATE TABLE IF NOT EXISTS balances (
@@ -79,6 +105,7 @@ export class HolderCounter {
       -- Create indexes for performance
       CREATE INDEX IF NOT EXISTS idx_balances_token ON balances(token);
       CREATE INDEX IF NOT EXISTS idx_balances_address ON balances(address);
+      CREATE INDEX IF NOT EXISTS idx_last_token_transfer_ts ON last_token_transfer(lastTransferTime);
     `);
 
     // Prepare statements
@@ -95,113 +122,194 @@ export class HolderCounter {
       setHolderCount: this.db.prepare(
         'INSERT OR REPLACE INTO token_holder_count (token, holderCount) VALUES (?, ?)',
       ),
-      getAllHolders: this.db.prepare('SELECT token, holderCount FROM token_holder_count'),
     };
   }
 
+  private measure<T>(name: keyof typeof this.metrics, fn: () => T): T {
+    const start = performance.now();
+    const result = fn();
+    const time = performance.now() - start;
+    this.metrics[name].total += time;
+    this.metrics[name].count++;
+    return result;
+  }
+
   private getFirstFrom(token: string): string | undefined {
-    return (this.statements.getFirstFrom.get(token) as any)?.firstFrom;
+    return this.measure(
+      'getFirstFrom',
+      () => (this.statements.getFirstFrom.get(token) as any)?.firstFrom,
+    );
   }
 
   private setFirstFrom(token: string, firstFrom: string): void {
-    this.statements.setFirstFrom.run(token, firstFrom);
+    this.measure('setFirstFrom', () => this.statements.setFirstFrom.run(token, firstFrom));
   }
 
   private getBalance(token: string, address: string): bigint {
-    const row = this.statements.getBalance.get(token, address) as { balance: string } | undefined;
-    return BigInt(row?.balance || '0');
+    return this.measure('getBalance', () => {
+      const row = this.statements.getBalance.get(token, address) as { balance: string } | undefined;
+      return BigInt(row?.balance || '0');
+    });
   }
 
   private setBalance(token: string, address: string, balance: bigint): void {
-    this.statements.setBalance.run(token, address, balance.toString());
+    this.measure('setBalance', () =>
+      this.statements.setBalance.run(token, address, balance.toString()),
+    );
+  }
+
+  private setLastTokenTransferTimestamp(token: string, timestamp: number): void {
+    this.measure('setLastTransferTimestamp', () =>
+      this.db
+        .prepare(
+          'INSERT OR REPLACE INTO last_token_transfer (token, lastTransferTime) VALUES (?, ?)',
+        )
+        .run(token, timestamp),
+    );
   }
 
   private getHolderCount(token: string): number {
-    const row = this.statements.getHolderCount.get(token) as { holderCount: number } | undefined;
-    return row?.holderCount || 0;
+    return this.measure('getHolderCount', () => {
+      const row = this.statements.getHolderCount.get(token) as { holderCount: number } | undefined;
+      return row?.holderCount || 0;
+    });
   }
 
   private setHolderCount(token: string, count: number): void {
-    this.statements.setHolderCount.run(token, count);
+    this.measure('setHolderCount', () => this.statements.setHolderCount.run(token, count));
   }
 
-  private getAllHolders(): TokenHolders[] {
-    return this.statements.getAllHolders.all() as TokenHolders[];
+  private getAllHolders(startTime: number): TokenHolders[] {
+    return this.measure(
+      'getAllHolders',
+      () =>
+        this.db
+          .prepare(`
+            SELECT c.token AS token, c.holderCount AS holderCount
+            FROM token_holder_count c
+              JOIN last_token_transfer t ON t.token = c.token
+            WHERE t.lastTransferTime > ?
+            `)
+          .all(startTime) as TokenHolders[],
+    );
   }
 
   private getState(): HolderCounterState {
-    return this.db.prepare('SELECT * FROM state WHERE id=1').get() as HolderCounterState;
+    return this.measure(
+      'getState',
+      () => this.db.prepare('SELECT * FROM state WHERE id=1').get() as HolderCounterState,
+    );
   }
 
   private updateStateProcessed(transfer: Erc20Event): void {
-    this.db
-      .prepare(
-        'UPDATE state SET processedTimestamp = ?, processedTxIndex = ?, processedLogIndex = ? WHERE id = 1',
-      )
-      .run(transfer.timestamp.getTime(), transfer.transaction.index, transfer.transaction.logIndex);
+    this.measure('updateStateProcessed', () =>
+      this.db
+        .prepare(
+          'UPDATE state SET processedTimestamp = ?, processedTxIndex = ?, processedLogIndex = ? WHERE id = 1',
+        )
+        .run(
+          transfer.timestamp.getTime(),
+          transfer.transaction.index,
+          transfer.transaction.logIndex,
+        ),
+    );
   }
 
-  private updateState(state: HolderCounterState): void {
-    this.db
-      .prepare(
-        'UPDATE state SET processedTimestamp = ?, processedTxIndex = ?, processedLogIndex = ?, lastCallbackTimestamp = ?, lastCallbackTxIndex = ?, lastCallbackLogIndex = ? WHERE id = 1',
-      )
-      .run(
-        state.processedTimestamp,
-        state.processedTxIndex,
-        state.processedLogIndex,
-        state.lastCallbackTimestamp,
-        state.lastCallbackTxIndex,
-        state.lastCallbackLogIndex,
+  private updateState(): void {
+    this.measure('updateState', () => {
+      this.db
+        .prepare(
+          'UPDATE state SET processedTimestamp = ?, processedTxIndex = ?, processedLogIndex = ?, lastCallbackTimestamp = ?, lastCallbackTxIndex = ?, lastCallbackLogIndex = ? WHERE id = 1',
+        )
+        .run(
+          this.state.processedTimestamp,
+          this.state.processedTxIndex,
+          this.state.processedLogIndex,
+          this.state.lastCallbackTimestamp,
+          this.state.lastCallbackTxIndex,
+          this.state.lastCallbackLogIndex,
+        );
+    });
+    this.printStats();
+  }
+
+  private printStats() {
+    const now = Date.now();
+    if (now - this.lastPrint > 60000) {
+      // every minute
+      let totalTimeSeconds = 0;
+      console.log('\nDB Operations Stats:');
+      Object.entries(this.metrics).forEach(([name, { total, count }]) => {
+        if (count > 0) {
+          const seconds = total / 1000;
+          totalTimeSeconds += seconds;
+          console.log(
+            `${name}: ${(total / count).toFixed(2)}ms avg (${count} calls, ${seconds.toFixed(2)}s total)`,
+          );
+        }
+      });
+      console.log(`Total time spent in DB operations: ${totalTimeSeconds.toFixed(2)}s`);
+
+      const transfersPerSecond =
+        (this.transferMetrics.totalTransfers - this.transferMetrics.lastTransferCount) /
+        ((now - this.transferMetrics.lastTransferTime) / 1000);
+      console.log(
+        `Transfers processed: ${this.transferMetrics.totalTransfers} (${transfersPerSecond.toFixed(2)}/sec)`,
       );
+
+      this.transferMetrics.lastTransferCount = this.transferMetrics.totalTransfers;
+      this.transferMetrics.lastTransferTime = now;
+      this.lastPrint = now;
+    }
   }
 
-  private async emitCallbackIfNesessary(state: HolderCounterState, transfer: Erc20Event) {
+  private async emitCallbackIfNesessary(transfer: Erc20Event) {
     const toStartOf = this.toStartOfFiveMinutes;
 
-    if (state.lastCallbackTimestamp === -1) {
+    if (this.state.lastCallbackTimestamp === -1) {
       // first transfer ever -> insert dummy callback state as if in this 5 minutes interval callback was already called
-      state.lastCallbackTimestamp = toStartOf(transfer.timestamp);
-      this.updateState(state);
+      this.state.lastCallbackTimestamp = toStartOf(transfer.timestamp);
+      this.updateState();
       return;
     }
 
-    if (toStartOf(transfer.timestamp) === state.lastCallbackTimestamp) {
+    if (toStartOf(transfer.timestamp) === this.state.lastCallbackTimestamp) {
       // we are still in same time group, just exit for now
       return;
     }
 
     // we now entered the next time group, so emit callback for previous group,
     // NOT counting current transfer.
-    const holders = this.getAllHolders();
+    // we extract only tokens where last transfer was not later than 10 minutes ago
+    const holders = this.getAllHolders(toStartOf(transfer.timestamp) - 10 * 60 * 1000);
 
     // Execute callback
-    await this.holdersChangedCallback(toStartOf(new Date(state.processedTimestamp)), holders);
+    await this.holdersChangedCallback(toStartOf(new Date(this.state.processedTimestamp)), holders);
 
     // update callback state if callback is successful.
     // potential error (very rare case) – if pipe crashes between callback successfully wrote data somewhere else,
     // state is not updated. So when pipe is recovered, a duplicate will be sent in callback
-    state.lastCallbackTimestamp = toStartOf(transfer.timestamp);
-    this.updateState(state);
+    this.state.lastCallbackTimestamp = toStartOf(transfer.timestamp);
+    this.updateState();
   }
 
   public async processTransfer(transfer: Erc20Event) {
-    const state = this.getState();
+    this.transferMetrics.totalTransfers++;
 
     if (
-      transfer.timestamp.getTime() < state.processedTimestamp ||
-      (transfer.timestamp.getTime() === state.processedTimestamp &&
-        transfer.transaction.index < state.processedTxIndex) ||
-      (transfer.timestamp.getTime() === state.processedTimestamp &&
-        transfer.transaction.index === state.processedTxIndex &&
-        transfer.transaction.logIndex <= state.processedLogIndex)
+      transfer.timestamp.getTime() < this.state.processedTimestamp ||
+      (transfer.timestamp.getTime() === this.state.processedTimestamp &&
+        transfer.transaction.index < this.state.processedTxIndex) ||
+      (transfer.timestamp.getTime() === this.state.processedTimestamp &&
+        transfer.transaction.index === this.state.processedTxIndex &&
+        transfer.transaction.logIndex <= this.state.processedLogIndex)
     ) {
       // due to possible app outage counter can start from prev transfers that were processed –
       // so just ignore them until new one is passed.
       return;
     }
 
-    await this.emitCallbackIfNesessary(state, transfer);
+    await this.emitCallbackIfNesessary(transfer);
 
     const { from, to, token_address: token, amount, timestamp } = transfer;
 
@@ -257,32 +365,34 @@ export class HolderCounter {
         this.setBalance(token, to, newToBal);
         this.setHolderCount(token, newHolderCount);
       }
+      this.setLastTokenTransferTimestamp(transfer.token_address, transfer.timestamp.getTime());
       this.updateStateProcessed(transfer);
       this.db.prepare('COMMIT').run();
     } catch (err) {
       this.logger.error(err);
       this.db.prepare('ROLLBACK').run();
+      this.state = this.getState(); // reload state in case of error
       throw err;
     }
   }
 
-  printState() {
-    const holders = this.getAllHolders();
-    const totalHolders = holders.reduce((sum, h) => sum + h.holderCount, 0);
-    const maxHolders = Math.max(...holders.map((h) => h.holderCount));
-    const minHolders = Math.min(...holders.map((h) => h.holderCount));
-    const avgHolders = holders.length > 0 ? Math.floor(totalHolders / holders.length) : 0;
+  // printState() {
+  //   const holders = this.getAllHolders();
+  //   const totalHolders = holders.reduce((sum, h) => sum + h.holderCount, 0);
+  //   const maxHolders = Math.max(...holders.map((h) => h.holderCount));
+  //   const minHolders = Math.min(...holders.map((h) => h.holderCount));
+  //   const avgHolders = holders.length > 0 ? Math.floor(totalHolders / holders.length) : 0;
 
-    this.logger.info(
-      [
-        `tokenHolderCount: ${holders.length}`,
-        `firstMintsCount: ${this.firstMintsCount}`,
-        `maxTokenOwners: ${maxHolders}`,
-        `minTokenOwners: ${minHolders}`,
-        `avgTokenHolders: ${avgHolders}`,
-      ].join(' '),
-    );
-  }
+  //   this.logger.info(
+  //     [
+  //       `tokenHolderCount: ${holders.length}`,
+  //       `firstMintsCount: ${this.firstMintsCount}`,
+  //       `maxTokenOwners: ${maxHolders}`,
+  //       `minTokenOwners: ${minHolders}`,
+  //       `avgTokenHolders: ${avgHolders}`,
+  //     ].join(' '),
+  //   );
+  // }
 
   private toStartOfFiveMinutes(date: Date) {
     return new Date(
