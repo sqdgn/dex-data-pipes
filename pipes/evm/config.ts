@@ -41,8 +41,10 @@ export function getConfig() {
 
   return {
     network: network as Network,
+    networkUnderscored: (network || '').replace('-', '_'),
     factory: CONTRACTS.factory[network],
     dbPath: process.env.DB_PATH || './pools.db',
+    holdersDbPath: process.env.HOLDERS_DB_PATH || './holders.db',
     portal: PORTAL[network],
     blockFrom,
     collectData: COLLECT_DATA,

@@ -2,6 +2,8 @@
 .yarn
 node_modules
 *.sqlite*
+*.duckdb
+*.wal
 *.db
 *.db-shm
 *.db-wal

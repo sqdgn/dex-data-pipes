@@ -3,5 +3,7 @@ api
 app
 metadata
 *.db
+*.duckdb
+*.wal
 *.env
 .env
