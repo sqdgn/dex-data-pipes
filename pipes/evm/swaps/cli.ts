@@ -14,9 +14,7 @@ const logger = createLogger('evm dex swaps').child({ network: config.network });
 logger.info(`Local database: ${config.dbPath}`);
 
 async function main() {
-  const networkUnderscore = (config.network || '').replace('-', '_');
-
-  await ensureTables(clickhouse, __dirname, networkUnderscore);
+  await ensureTables(clickhouse, __dirname, config.networkUnderscored);
 
   const ds = new EvmSwapStream({
     portal: process.env.PORTAL_URL ?? config.portal.url,
@@ -36,8 +34,8 @@ async function main() {
     },
     logger,
     state: new ClickhouseState(clickhouse, {
-      table: `${networkUnderscore}_sync_status`,
-      id: `${networkUnderscore}-swaps${!!process.env.BLOCK_TO ? '-pools' : ''}`,
+      table: `${config.networkUnderscored}_sync_status`,
+      id: `${config.networkUnderscored}-swaps${!!process.env.BLOCK_TO ? '-pools' : ''}`,
       onStateRollback: async (state, current) => {
         /**
          * Clean all data before the current offset.
@@ -46,7 +44,7 @@ async function main() {
          */
 
         await state.cleanAllBeforeOffset({
-          table: `${networkUnderscore}_swaps_raw`,
+          table: `${config.networkUnderscored}_swaps_raw`,
           column: 'timestamp',
           offset: current.timestamp,
         });
