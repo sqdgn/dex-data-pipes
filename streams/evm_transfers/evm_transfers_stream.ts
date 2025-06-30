@@ -1,6 +1,8 @@
 import { BlockRef, OptionalArgs, PortalAbstractStream } from '@sqd-pipes/core';
 import { events as abi_events } from './abi';
 import { HolderCounter, TokenHolders } from './holder_counter';
+import { NodeClickHouseClient } from '@clickhouse/client/dist/client';
+import { timeStamp } from 'console';
 
 export type Erc20Event = {
   from: string;
@@ -20,6 +22,8 @@ export type Erc20Event = {
 type Args = {
   dbPath: string;
   contracts?: string[];
+  networkUnderscored: string;
+  holderClickhouseCliend: NodeClickHouseClient;
 };
 
 export class EvmTransfersStream extends PortalAbstractStream<Erc20Event, Args> {
@@ -31,25 +35,22 @@ export class EvmTransfersStream extends PortalAbstractStream<Erc20Event, Args> {
       this.logger,
       this.holdersCallback,
     );
-    //await this.holderCounter.init();
   }
 
   private holdersCallback = async (timestamp: number, holders: TokenHolders[]) => {
-    console.log(
-      '\nHolders for:',
-      new Date(timestamp).toLocaleString(),
-      'total tokens:',
-      holders.length,
+    await this.options.args.holderClickhouseCliend.insert({
+      table: `${this.options.args.networkUnderscored}_erc20_holders`,
+      values: holders.map((h) => ({
+        timestamp: Math.floor(timestamp / 1000),
+        token: h.token,
+        holders: h.holderCount,
+      })),
+      format: 'JSONEachRow',
+    });
+
+    this.logger.info(
+      `Holders for: ${new Date(timestamp).toLocaleString()} total tokens: ${holders.length}`,
     );
-    // const whitelist = [
-    //   '0xe55fee191604cdbeb874f87a28ca89aed401c303',
-    //   '0xd4a0e0b9149bcee3c920d2e00b5de09138fd8bb7',
-    //   '0x31e3cf5e177cd56a4ed5a010edd4e5da4506e2cf',
-    // ];
-    // holders
-    //   .filter((h) => whitelist.includes(h.token))
-    //   .forEach((h) => console.log(`${h.token}: ${h.holderCount}`));
-    await new Promise((r) => r(1));
   };
 
   async stream(): Promise<ReadableStream<Erc20Event[]>> {

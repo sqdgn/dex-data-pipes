@@ -20,16 +20,18 @@ async function main() {
     },
     args: {
       dbPath: config.holdersDbPath,
+      networkUnderscored: config.networkUnderscored,
+      holderClickhouseCliend: clickhouse,
     },
     logger,
     state: new ClickhouseState(clickhouse, {
-      table: `${config.networkUnderscored}_sync_status`,
+      table: `${config.networkUnderscored}_transfers_sync_status`,
       id: `${config.networkUnderscored}-transfers`,
-      onStateRollback: async (state, current) => {
-        await state.cleanAllBeforeOffset({
+      onRollback: async ({ state, latest }) => {
+        await state.removeAllRows({
           table: `${config.networkUnderscored}_erc20_transfers`,
-          column: 'timestamp',
-          offset: current.timestamp,
+          where: 'block_number > {bl:UInt32}',
+          params: { bl: latest.number },
         });
       },
     }),
@@ -41,7 +43,6 @@ async function main() {
       table: `${config.networkUnderscored}_erc20_transfers`,
       values: transfers.map((t) => {
         return {
-          network: config.network,
           block_number: t.block.number,
           transaction_hash: t.transaction.hash,
           transaction_index: t.transaction.index,

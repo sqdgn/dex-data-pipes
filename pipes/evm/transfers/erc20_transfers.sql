@@ -1,7 +1,6 @@
 CREATE TABLE IF NOT EXISTS ${network}_erc20_transfers
 (
     timestamp         DateTime CODEC (DoubleDelta, ZSTD),
-    network           LowCardinality(String),
     token             String,
     "from"            String,
     "to"              String,
@@ -24,10 +23,8 @@ CREATE TABLE IF NOT EXISTS ${network}_erc20_holders
 (
     timestamp         DateTime CODEC (DoubleDelta, ZSTD),
     token             String,
-    holders			  UInt32,
-    sign		      Int8
-) ENGINE = CollapsingMergeTree(sign)
+    holders			  UInt32
+) ENGINE = ReplacingMergeTree()
       PARTITION BY toYYYYMM(timestamp)
       ORDER BY (token, timestamp)
-      TTL timestamp + INTERVAL 90 DAY;
-
+      TTL timestamp + INTERVAL 120 DAY;

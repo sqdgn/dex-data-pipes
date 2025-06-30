@@ -202,8 +202,8 @@ export class HolderCounter {
   }
 
   private updateStateProcessed(transfer: Erc20Event): void {
-    this.measure('updateStateProcessed', () =>
-      this.db
+    this.measure('updateStateProcessed', () => {
+      const res = this.db
         .prepare(
           'UPDATE state SET processedTimestamp = ?, processedTxIndex = ?, processedLogIndex = ? WHERE id = 1',
         )
@@ -211,11 +211,16 @@ export class HolderCounter {
           transfer.timestamp.getTime(),
           transfer.transaction.index,
           transfer.transaction.logIndex,
-        ),
-    );
+        );
+
+      this.state.processedTimestamp = transfer.timestamp.getTime();
+      this.state.processedTxIndex = transfer.transaction.index;
+      this.state.processedLogIndex = transfer.transaction.logIndex;
+      return res;
+    });
   }
 
-  private updateState(): void {
+  private flushState(): void {
     this.measure('updateState', () => {
       this.db
         .prepare(
@@ -269,7 +274,7 @@ export class HolderCounter {
     if (this.state.lastCallbackTimestamp === -1) {
       // first transfer ever -> insert dummy callback state as if in this 5 minutes interval callback was already called
       this.state.lastCallbackTimestamp = toStartOf(transfer.timestamp);
-      this.updateState();
+      this.flushState();
       return;
     }
 
@@ -290,7 +295,7 @@ export class HolderCounter {
     // potential error (very rare case) – if pipe crashes between callback successfully wrote data somewhere else,
     // state is not updated. So when pipe is recovered, a duplicate will be sent in callback
     this.state.lastCallbackTimestamp = toStartOf(transfer.timestamp);
-    this.updateState();
+    this.flushState();
   }
 
   public async processTransfer(transfer: Erc20Event) {
