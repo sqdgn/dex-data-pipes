@@ -22,12 +22,13 @@ export type Erc20Event = {
 type Args = {
   dbPath: string;
   contracts?: string[];
-  networkUnderscored: string;
   holderClickhouseCliend: NodeClickHouseClient;
+  noHolders: boolean;
 };
 
 export class EvmTransfersStream extends PortalAbstractStream<Erc20Event, Args> {
   holderCounter: HolderCounter;
+  lastTimeHoldersStatsPrinted = 0;
 
   async initialize() {
     this.holderCounter = new HolderCounter(
@@ -38,8 +39,12 @@ export class EvmTransfersStream extends PortalAbstractStream<Erc20Event, Args> {
   }
 
   private holdersCallback = async (timestamp: number, holders: TokenHolders[]) => {
+    if (!holders.length) {
+      return;
+    }
+
     await this.options.args.holderClickhouseCliend.insert({
-      table: `${this.options.args.networkUnderscored}_erc20_holders`,
+      table: `erc20_holders`,
       values: holders.map((h) => ({
         timestamp: Math.floor(timestamp / 1000),
         token: h.token,
@@ -48,9 +53,13 @@ export class EvmTransfersStream extends PortalAbstractStream<Erc20Event, Args> {
       format: 'JSONEachRow',
     });
 
-    this.logger.info(
-      `Holders for: ${new Date(timestamp).toLocaleString()} total tokens: ${holders.length}`,
-    );
+    if (Date.now() - this.lastTimeHoldersStatsPrinted >= 1000) {
+      // not often than 1 in a second
+      this.logger.info(
+        `Holders for: ${new Date(timestamp).toLocaleString()} total tokens: ${holders.length}`,
+      );
+      this.lastTimeHoldersStatsPrinted = Date.now();
+    }
   };
 
   async stream(): Promise<ReadableStream<Erc20Event[]>> {
@@ -115,7 +124,9 @@ export class EvmTransfersStream extends PortalAbstractStream<Erc20Event, Args> {
                 tx: l.transactionHash,
               };
 
-              await this.holderCounter.processTransfer(event);
+              if (!this.options.args.noHolders) {
+                await this.holderCounter.processTransfer(event);
+              }
               allEvents.push(event);
             }
           }

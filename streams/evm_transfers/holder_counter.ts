@@ -188,7 +188,7 @@ export class HolderCounter {
             SELECT c.token AS token, c.holderCount AS holderCount
             FROM token_holder_count c
               JOIN last_token_transfer t ON t.token = c.token
-            WHERE t.lastTransferTime > ?
+            WHERE t.lastTransferTime >= ?
             `)
           .all(startTime) as TokenHolders[],
     );
@@ -285,11 +285,12 @@ export class HolderCounter {
 
     // we now entered the next time group, so emit callback for previous group,
     // NOT counting current transfer.
-    // we extract only tokens where last transfer was not later than 10 minutes ago
-    const holders = this.getAllHolders(toStartOf(transfer.timestamp) - 10 * 60 * 1000);
+    // we extract only tokens where last transfer was in the current time group
+    const currentGroupStart = toStartOf(new Date(this.state.processedTimestamp));
+    const holders = this.getAllHolders(currentGroupStart);
 
     // Execute callback
-    await this.holdersChangedCallback(toStartOf(new Date(this.state.processedTimestamp)), holders);
+    await this.holdersChangedCallback(currentGroupStart, holders);
 
     // update callback state if callback is successful.
     // potential error (very rare case) – if pipe crashes between callback successfully wrote data somewhere else,

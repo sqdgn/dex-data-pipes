@@ -7,29 +7,31 @@ import { ClickhouseState } from '@sqd-pipes/core';
 
 const config = getConfig();
 
-const clickhouse = createClickhouseClient();
 const logger = createLogger('erc20').child({ network: config.network });
 
 async function main() {
-  await ensureTables(clickhouse, __dirname, config.networkUnderscored);
+  const clickhouse = await createClickhouseClient();
+  await ensureTables(clickhouse, __dirname);
 
   const ds = new EvmTransfersStream({
     portal: config.portal.url,
     blockRange: {
       from: config.blockFrom,
+      to: process.env.BLOCK_TO,
     },
     args: {
-      dbPath: config.holdersDbPath,
-      networkUnderscored: config.networkUnderscored,
+      dbPath: config.dbPath,
       holderClickhouseCliend: clickhouse,
+      noHolders: !!process.env.BLOCK_TO,
     },
     logger,
     state: new ClickhouseState(clickhouse, {
-      table: `${config.networkUnderscored}_transfers_sync_status`,
-      id: `${config.networkUnderscored}-transfers`,
+      table: `sync_status`,
+      database: process.env.CLICKHOUSE_DB,
+      id: `erc20_transfers`,
       onRollback: async ({ state, latest }) => {
         await state.removeAllRows({
-          table: `${config.networkUnderscored}_erc20_transfers`,
+          table: `erc20_transfers`,
           where: 'block_number > {bl:UInt32}',
           params: { bl: latest.number },
         });
@@ -40,7 +42,7 @@ async function main() {
 
   for await (const transfers of await ds.stream()) {
     await clickhouse.insert({
-      table: `${config.networkUnderscored}_erc20_transfers`,
+      table: `erc20_transfers`,
       values: transfers.map((t) => {
         return {
           block_number: t.block.number,
