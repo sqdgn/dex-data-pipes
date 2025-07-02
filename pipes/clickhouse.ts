@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import assert from 'assert';
 import path from 'node:path';
 import * as process from 'node:process';
 import { ClickHouseClient, createClient } from '@clickhouse/client';
@@ -23,7 +24,7 @@ export async function loadSqlFiles(directoryOrFile: string): Promise<string[]> {
 export async function ensureTables(
   clickhouse: ClickHouseClient,
   dir: string,
-  networkReplace: string,
+  networkReplace: string = '',
 ) {
   const tables = await loadSqlFiles(dir);
 
@@ -44,11 +45,16 @@ export async function ensureTables(
   }
 }
 
-export function createClickhouseClient() {
+export async function createClickhouseClient() {
+  assert(
+    process.env.CLICKHOUSE_DB,
+    'CLICKHOUSE_DB env param must be specified – it must be the same as service name',
+  );
   const options = {
     url: process.env.CLICKHOUSE_URL || 'http://localhost:8123',
     username: process.env.CLICKHOUSE_USER || 'default',
     password: process.env.CLICKHOUSE_PASSWORD || '',
+    database: process.env.CLICKHOUSE_DB,
   };
 
   return createClient(options);

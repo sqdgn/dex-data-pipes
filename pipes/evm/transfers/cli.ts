@@ -7,31 +7,36 @@ import { ClickhouseState } from '@sqd-pipes/core';
 
 const config = getConfig();
 
-const clickhouse = createClickhouseClient();
 const logger = createLogger('erc20').child({ network: config.network });
 
 async function main() {
-  await ensureTables(clickhouse, __dirname, config.networkUnderscored);
+  const clickhouse = await createClickhouseClient();
+  await ensureTables(clickhouse, __dirname);
 
+  const onlyFirstTransfers = !!process.env.BLOCK_TO;
   const ds = new EvmTransfersStream({
     portal: config.portal.url,
     blockRange: {
       from: config.blockFrom,
+      to: process.env.BLOCK_TO,
     },
     args: {
-      dbPath: config.holdersDbPath,
-      networkUnderscored: config.networkUnderscored,
+      dbPath: config.dbPath,
       holderClickhouseCliend: clickhouse,
+      onlyFirstTransfers,
     },
     logger,
     state: new ClickhouseState(clickhouse, {
-      table: `${config.networkUnderscored}_transfers_sync_status`,
-      id: `${config.networkUnderscored}-transfers`,
+      table: `sync_status`,
+      database: process.env.CLICKHOUSE_DB,
+      id: `erc20_transfers`,
       onRollback: async ({ state, latest }) => {
+        if (!latest.timestamp) {
+          return; // fresh table
+        }
         await state.removeAllRows({
-          table: `${config.networkUnderscored}_erc20_transfers`,
-          where: 'block_number > {bl:UInt32}',
-          params: { bl: latest.number },
+          table: `erc20_transfers`,
+          where: `timestamp > ${latest.timestamp}`,
         });
       },
     }),
@@ -39,25 +44,26 @@ async function main() {
   await ds.initialize();
 
   for await (const transfers of await ds.stream()) {
-    await clickhouse.insert({
-      table: `${config.networkUnderscored}_erc20_transfers`,
-      values: transfers.map((t) => {
-        return {
-          block_number: t.block.number,
-          transaction_hash: t.transaction.hash,
-          transaction_index: t.transaction.index,
-          log_index: t.transaction.logIndex,
-          token: t.token_address,
-          from: t.from,
-          to: t.to,
-          amount: t.amount.toString(),
-          timestamp: toUnixTime(t.timestamp),
-          sign: 1,
-        };
-      }),
-      format: 'JSONEachRow',
-    });
-
+    if (!onlyFirstTransfers) {
+      await clickhouse.insert({
+        table: `erc20_transfers`,
+        values: transfers.map((t) => {
+          return {
+            block_number: t.block.number,
+            transaction_hash: t.transaction.hash,
+            transaction_index: t.transaction.index,
+            log_index: t.transaction.logIndex,
+            token: t.token_address,
+            from: t.from,
+            to: t.to,
+            amount: t.amount.toString(),
+            timestamp: toUnixTime(t.timestamp),
+            sign: 1,
+          };
+        }),
+        format: 'JSONEachRow',
+      });
+    }
     await ds.ack();
   }
 }

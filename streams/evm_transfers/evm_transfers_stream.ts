@@ -2,9 +2,10 @@ import { BlockRef, OptionalArgs, PortalAbstractStream } from '@sqd-pipes/core';
 import { events as abi_events } from './abi';
 import { HolderCounter, TokenHolders } from './holder_counter';
 import { NodeClickHouseClient } from '@clickhouse/client/dist/client';
+import { toUnixTime } from '../../pipes/clickhouse';
 import { timeStamp } from 'console';
 
-export type Erc20Event = {
+export type Erc20Transfer = {
   from: string;
   to: string;
   amount: bigint;
@@ -22,24 +23,50 @@ export type Erc20Event = {
 type Args = {
   dbPath: string;
   contracts?: string[];
-  networkUnderscored: string;
   holderClickhouseCliend: NodeClickHouseClient;
+  onlyFirstTransfers: boolean;
 };
 
-export class EvmTransfersStream extends PortalAbstractStream<Erc20Event, Args> {
+export class EvmTransfersStream extends PortalAbstractStream<Erc20Transfer, Args> {
   holderCounter: HolderCounter;
+  lastTimeHoldersStatsPrinted = 0;
 
   async initialize() {
     this.holderCounter = new HolderCounter(
       this.options.args.dbPath,
       this.logger,
-      this.holdersCallback,
+      this.holdersHook,
+      this.firstTransferHook,
     );
   }
 
-  private holdersCallback = async (timestamp: number, holders: TokenHolders[]) => {
+  private firstTransferHook = async (transfer: Erc20Transfer) => {
     await this.options.args.holderClickhouseCliend.insert({
-      table: `${this.options.args.networkUnderscored}_erc20_holders`,
+      table: `erc20_first_transfers`,
+      values: [
+        {
+          timestamp: toUnixTime(transfer.timestamp),
+          token: transfer.token_address,
+          from: transfer.from,
+          to: transfer.to,
+          amount: transfer.amount.toString(),
+          block_number: transfer.block.number,
+          transaction_index: transfer.transaction.index,
+          log_index: transfer.transaction.logIndex,
+          transaction_hash: transfer.transaction.hash,
+        },
+      ],
+      format: 'JSONEachRow',
+    });
+  };
+
+  private holdersHook = async (timestamp: number, holders: TokenHolders[]) => {
+    if (!holders.length) {
+      return;
+    }
+
+    await this.options.args.holderClickhouseCliend.insert({
+      table: `erc20_holders`,
       values: holders.map((h) => ({
         timestamp: Math.floor(timestamp / 1000),
         token: h.token,
@@ -48,12 +75,16 @@ export class EvmTransfersStream extends PortalAbstractStream<Erc20Event, Args> {
       format: 'JSONEachRow',
     });
 
-    this.logger.info(
-      `Holders for: ${new Date(timestamp).toLocaleString()} total tokens: ${holders.length}`,
-    );
+    if (Date.now() - this.lastTimeHoldersStatsPrinted >= 1000) {
+      // not often than 1 in a second
+      this.logger.info(
+        `Holders for: ${new Date(timestamp).toLocaleString()} total tokens: ${holders.length}`,
+      );
+      this.lastTimeHoldersStatsPrinted = Date.now();
+    }
   };
 
-  async stream(): Promise<ReadableStream<Erc20Event[]>> {
+  async stream(): Promise<ReadableStream<Erc20Transfer[]>> {
     const source = await this.getStream({
       type: 'evm',
       fields: {
@@ -115,7 +146,8 @@ export class EvmTransfersStream extends PortalAbstractStream<Erc20Event, Args> {
                 tx: l.transactionHash,
               };
 
-              await this.holderCounter.processTransfer(event);
+              await this.holderCounter.processTransfer(event, this.options.args.onlyFirstTransfers);
+
               allEvents.push(event);
             }
           }

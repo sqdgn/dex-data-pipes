@@ -1,3 +1,4 @@
+import assert from 'assert';
 import dotenv from 'dotenv';
 import { Network } from '../../streams/evm_swaps/networks';
 
@@ -36,17 +37,13 @@ export function getConfig() {
       : 'ethereum';
 
   const blockFrom = process.env.BLOCK_FROM ? parseInt(process.env.BLOCK_FROM) : 0;
-
-  const COLLECT_DATA = process.env.COLLECT_DATA;
+  assert(process.env.DB_PATH, 'DB_PATH param must be specified');
 
   return {
     network: network as Network,
-    networkUnderscored: (network || '').replace('-', '_'),
     factory: CONTRACTS.factory[network],
-    dbPath: process.env.DB_PATH || './pools.db',
-    holdersDbPath: process.env.HOLDERS_DB_PATH || './holders.db',
+    dbPath: process.env.DB_PATH,
     portal: PORTAL[network],
     blockFrom,
-    collectData: COLLECT_DATA,
   };
 }

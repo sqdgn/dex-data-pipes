@@ -6,7 +6,7 @@ services:
     image: bitnami/clickhouse:latest
     container_name: jelly_ch
     ports:
-      - '8123:8123'
+      - "8123:8123"
     environment:
       - ALLOW_EMPTY_PASSWORD=yes
     volumes:

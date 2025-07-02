@@ -36,17 +36,11 @@ async function main() {
     state: new ClickhouseState(clickhouse, {
       table: `${config.networkUnderscored}_sync_status`,
       id: `${config.networkUnderscored}-swaps${!!process.env.BLOCK_TO ? '-pools' : ''}`,
-      onStateRollback: async (state, current) => {
-        /**
-         * Clean all data before the current offset.
-         * There is a small chance if the stream is interrupted, the data will be duplicated.
-         * We just clean it up at the start to avoid duplicates.
-         */
-
-        await state.cleanAllBeforeOffset({
+      onRollback: async ({ state, latest }) => {
+        await state.removeAllRows({
           table: `${config.networkUnderscored}_swaps_raw`,
-          column: 'timestamp',
-          offset: current.timestamp,
+          where: 'block_number > {bl:UInt32}',
+          params: { bl: latest.number },
         });
       },
     }),
