@@ -54,8 +54,12 @@ const referenceTokens: Record<Network, ReferenceToken[]> = {
       poolAddress: '0x6cdcb1c4a4d1c3c6d054b27ac5b77e89eafb971d'.toLowerCase(),
     },
     {
-      tokenAddress: '0x1B8128c3A1B7D20053D10763ff02466ca7FF99FC'.toLowerCase(), // ZORA
+      tokenAddress: '0x1111111111166b7FE7bd91427724B487980aFc69'.toLowerCase(), // ZORA
       poolAddress: '0xedc625b74537ee3a10874f53d170e9c17a906b9c'.toLowerCase(),
+    },
+    {
+      tokenAddress: '0x20DD04c17AFD5c9a8b3f2cdacaa8Ee7907385BEF'.toLowerCase(), // NATIVE
+      poolAddress: '0x4cd15f2bc9533bf6fac4ae33c649f138cb601935',
     },
   ],
   ethereum: [
@@ -90,7 +94,7 @@ export class PriceExtendStream {
     const result = await this.client.query({
       query: `
           SELECT token_b as tokenAddress, price_token_a_usdc as priceTokenUsdc, pool_address AS poolAddress, timestamp
-          FROM ${this.network}_swaps_raw_pool_gr
+          FROM swaps_raw_pool_gr
           WHERE pool_address = '${refToken.poolAddress}'
             AND token_a = '${refToken.tokenAddress}'
             AND sign > 0

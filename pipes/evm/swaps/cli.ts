@@ -33,6 +33,7 @@ async function main() {
     },
     logger,
     state: new ClickhouseState(clickhouse, {
+      database: process.env.CLICKHOUSE_DB,
       table: `sync_status`,
       id: `swaps${!!process.env.BLOCK_TO ? '-pools' : ''}`,
       onRollback: async ({ state, latest }) => {

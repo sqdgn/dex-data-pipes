@@ -1,16 +1,16 @@
 /*
-    How to resync all views in case something changed but raw data (base_swaps_raw) is correct:
+    How to resync all views in case something changed but raw data (swaps_raw) is correct:
 
     0. Stop pipe.
-    1. Rename source table:  RENAME TABLE base_swaps_raw TO base_swaps_raw_src
-    2. Delete all views/tables except base_swaps_raw and base_sync_status
+    1. Rename source table:  RENAME TABLE swaps_raw TO swaps_raw_src
+    2. Delete all views/tables except swaps_raw and sync_status
     3. Run this file again – recreate all tables/views.
-    4. Insert raw data into base_swaps_raw again to trigger all incremental MVs:
-        INSERT INTO base_swaps_raw SELECT * FROM base_swaps_raw_src
+    4. Insert raw data into swaps_raw again to trigger all incremental MVs:
+        INSERT INTO swaps_raw SELECT * FROM swaps_raw_src
     5. Wait until this expression is 1 (all rows are processed):
-        SELECT (SELECT COUNT(*) FROM base_swaps_raw) / (SELECT COUNT(*) FROM base_swaps_raw_src)
+        SELECT (SELECT COUNT(*) FROM swaps_raw) / (SELECT COUNT(*) FROM swaps_raw_src)
     6. Start pipe again.
-    7. If all's good drop table base_swaps_raw_src
+    7. If all's good drop table swaps_raw_src
 */
 
 
@@ -142,7 +142,7 @@ GROUP BY pool_address, token, timestamp;
             max(price_token_a_usdc) AS high,
             min(price_token_a_usdc) AS low,
             argMax(price_token_a_usdc, tuple(s.timestamp, s.transaction_index, s.log_index)) AS close
-        FROM base_swaps_raw_pool_gr s
+        FROM swaps_raw_pool_gr s
         WHERE pool_address = '0xd0b53d9277642d899df5c87a3966a349a798f224'
         AND toStartOfFiveMinute(timestamp) = '2025-04-07 13:30:00'
         AND ABS(amount_b) <= 10000 AND ABS(amount_b) >= 0.1
@@ -159,7 +159,7 @@ GROUP BY pool_address, token, timestamp;
             minMerge(low_price_token_usdc) AS low,
             argMaxMerge(close_price_token_usdc) AS close,
             (close-open) / open AS rise
-        FROM base_vols_candles
+        FROM vols_candles
         WHERE pool_address = lower('0xac534fc720fec7cd6b008765cd255074e0742152')
         GROUP BY pool_address, timestamp
         ORDER BY pool_address, timestamp

@@ -7,11 +7,18 @@ import * as assert from 'assert';
 
 import { EvmSwap } from './swap_types';
 import { nullToUndefined } from './util';
+import { inspect } from 'util';
 
 dotenv.config();
 
 const TOKEN_BATCH_LEN = 100;
 export const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+
+export const ERC20_ABI = [
+  'function decimals() view returns (uint8)',
+  'function symbol() view returns (string)',
+  'function name() view returns (string)',
+];
 
 export type TokenMetadata = {
   network: Network;
@@ -132,39 +139,48 @@ export class TokenMetadataStorage {
           },
         ]);
 
-        const results = await this.executeMulticall(calls);
-        const newLoadedTokens: TokenMetadata[] = [];
+        let newLoadedTokens: TokenMetadata[] = [];
+        let multicallResults: string[];
+        try {
+          multicallResults = await this.executeMulticall(calls);
 
-        for (let i = 0; i < currentTokenBatch.length; i++) {
-          const tokenAddress = currentTokenBatch[i];
-          const decimalsIndex = i * 2;
-          const symbolIndex = i * 2 + 1;
+          for (let i = 0; i < currentTokenBatch.length; i++) {
+            const tokenAddress = currentTokenBatch[i];
+            const decimalsIndex = i * 2;
+            const symbolIndex = i * 2 + 1;
 
-          try {
-            // Parse decimals (uint8)
-            const decimalsResult = results[decimalsIndex];
-            const decimals = decimalsResult ? parseInt(decimalsResult.slice(-2), 16) : 18;
+            try {
+              // Parse decimals (uint8)
+              const decimalsResult = multicallResults[decimalsIndex];
+              const decimals = decimalsResult ? parseInt(decimalsResult.slice(-2), 16) : 18;
 
-            // Parse symbol (string)
-            const symbolResult = results[symbolIndex];
-            const symbol = symbolResult ? this.parseStringFromHex(symbolResult) : '';
+              // Parse symbol (string)
+              const symbolResult = multicallResults[symbolIndex];
+              const symbol = symbolResult ? this.parseStringFromHex(symbolResult) : '';
 
-            const newToken = {
-              address: tokenAddress,
-              network: this.network,
-              decimals,
-              symbol,
-            };
-            newLoadedTokens.push(newToken);
-            this.tokenMetadataMap.set(tokenAddress, newToken);
-          } catch (decodeError) {
-            this.tokenMetadataMap.set(tokenAddress, {
-              address: tokenAddress,
-              network: this.network,
-              decimals: 18,
-              symbol: '',
-            });
+              const newToken = {
+                address: tokenAddress,
+                network: this.network,
+                decimals,
+                symbol,
+              };
+              newLoadedTokens.push(newToken);
+              this.tokenMetadataMap.set(tokenAddress, newToken);
+            } catch (decodeError) {
+              this.tokenMetadataMap.set(tokenAddress, {
+                address: tokenAddress,
+                network: this.network,
+                decimals: 18,
+                symbol: '',
+              });
+            }
           }
+        } catch (err) {
+          this.logger.error(
+            `Failed to execute multicall: ${(err as any).shortMessage || (err as any).reason}`,
+          );
+          newLoadedTokens = await this.getTokensMetadataRpc(currentTokenBatch);
+          this.logger.info(`getTokensMetadataRpc: ${newLoadedTokens.length} records returned`);
         }
         this.saveTokenMetadataIntoDb(newLoadedTokens);
       }
@@ -172,21 +188,24 @@ export class TokenMetadataStorage {
       // Enrich events with token metadata
       events.forEach((event) => {
         if (event.tokenA.decimals === undefined) {
-          const tokenAData = this.tokenMetadataMap.get(event.tokenA.address);
-          assert.ok(tokenAData);
+          const tokenAData =
+            this.tokenMetadataMap.get(event.tokenA.address) ||
+            this.defaultToken(event.tokenA.address);
           event.tokenA.decimals = tokenAData.decimals;
           event.tokenA.symbol = tokenAData.symbol;
         }
 
         if (event.tokenB.decimals === undefined) {
-          const tokenBData = this.tokenMetadataMap.get(event.tokenB.address);
-          assert.ok(tokenBData);
+          const tokenBData =
+            this.tokenMetadataMap.get(event.tokenB.address) ||
+            this.defaultToken(event.tokenB.address);
+
           event.tokenB.decimals = tokenBData.decimals;
           event.tokenB.symbol = tokenBData.symbol;
         }
       });
-    } catch (error) {
-      this.logger.error('Failed to enrich token data with multicall:', error);
+    } catch (err) {
+      this.logger.error(`Failed to enrich token data: ${inspect(err)}`);
     }
   }
 
@@ -205,6 +224,34 @@ export class TokenMetadataStorage {
     const multicallContract = new ethers.Contract(multicallAddress, multicallAbi, this.provider);
     const [, returnData] = await multicallContract.aggregate(calls);
     return returnData.map((data: any) => ethers.hexlify(data));
+  }
+
+  private async getTokensMetadataRpc(tokenAddresses: string[]): Promise<TokenMetadata[]> {
+    const res = tokenAddresses.map(async (token) => {
+      try {
+        const tokenContract = new ethers.Contract(token, ERC20_ABI, this.provider);
+        return {
+          address: token,
+          decimals: parseInt(await tokenContract.decimals()),
+          symbol: await tokenContract.symbol(),
+          network: this.network,
+        } satisfies TokenMetadata;
+      } catch (err) {
+        this.logger.error(`getTokensMetadataRpc: ${inspect(err)}`);
+        return this.defaultToken(token);
+      }
+    });
+
+    return Promise.all(res);
+  }
+
+  private defaultToken(address: string) {
+    return {
+      address,
+      decimals: 18,
+      symbol: '',
+      network: this.network,
+    } satisfies TokenMetadata;
   }
 
   private parseStringFromHex(hex: string): string {
