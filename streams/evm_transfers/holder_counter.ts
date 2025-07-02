@@ -1,5 +1,5 @@
 import { Logger as PinoLogger } from 'pino';
-import { Erc20Event } from './evm_transfers_stream';
+import { Erc20Transfer } from './evm_transfers_stream';
 import { DatabaseSync, StatementSync } from 'node:sqlite';
 import { HolderCounterState } from './holder_counter_types';
 
@@ -12,23 +12,18 @@ export type TokenHolders = {
   holderCount: number;
 };
 
-export type HoldersChangedCallback = (timestamp: number, holders: TokenHolders[]) => Promise<void>;
+export type HoldersChangedHook = (timestamp: number, holders: TokenHolders[]) => Promise<void>;
 
-export type FirstMintCallback = (
-  timestamp: string,
-  token: string,
-  transactionHash: string,
-) => Promise<void>;
+export type FirstTransferHook = (transfer: Erc20Transfer) => Promise<void>;
 
 export class HolderCounter {
   private logger: Logger;
   private db: DatabaseSync;
   private statements: Record<string, StatementSync>;
-  private firstMintsCount = 0;
   private state: HolderCounterState;
   private metrics = {
     getFirstFrom: { total: 0, count: 0 },
-    setFirstFrom: { total: 0, count: 0 },
+    setFirstTransfer: { total: 0, count: 0 },
     getBalance: { total: 0, count: 0 },
     setBalance: { total: 0, count: 0 },
     getHolderCount: { total: 0, count: 0 },
@@ -49,8 +44,8 @@ export class HolderCounter {
   constructor(
     private dbPath: string,
     logger: Logger,
-    private holdersChangedCallback: HoldersChangedCallback,
-    private firstMintCallback?: FirstMintCallback,
+    private holdersChangedHook: HoldersChangedHook,
+    private firstTransferHook: FirstTransferHook,
   ) {
     this.logger = logger.child({
       module: 'HolderCounter',
@@ -66,9 +61,16 @@ export class HolderCounter {
 
     // Create tables
     this.db.exec(`
-      CREATE TABLE IF NOT EXISTS first_transfer_from (
+      CREATE TABLE IF NOT EXISTS first_transfers (
         token TEXT PRIMARY KEY,
-        firstFrom TEXT NOT NULL
+        timestamp INTEGER NOT NULL,
+        "from" TEXT NOT NULL,
+        "to" TEXT NOT NULL,
+        amount TEXT NOT NULL,
+        block_number INTEGER NOT NULL,
+        transaction_index INTEGER NOT NULL,
+        log_index INTEGER NOT NULL,
+        transaction_hash TEXT NOT NULL
       );
 
       CREATE TABLE IF NOT EXISTS last_token_transfer (
@@ -110,10 +112,7 @@ export class HolderCounter {
 
     // Prepare statements
     this.statements = {
-      getFirstFrom: this.db.prepare('SELECT firstFrom FROM first_transfer_from WHERE token = ?'),
-      setFirstFrom: this.db.prepare(
-        'INSERT OR IGNORE INTO first_transfer_from (token, firstFrom) VALUES (?, ?)',
-      ),
+      getFirstFrom: this.db.prepare('SELECT "from" FROM first_transfers WHERE token = ?'),
       getBalance: this.db.prepare('SELECT balance FROM balances WHERE token = ? AND address = ?'),
       setBalance: this.db.prepare(
         'INSERT OR REPLACE INTO balances (token, address, balance) VALUES (?, ?, ?)',
@@ -137,12 +136,30 @@ export class HolderCounter {
   private getFirstFrom(token: string): string | undefined {
     return this.measure(
       'getFirstFrom',
-      () => (this.statements.getFirstFrom.get(token) as any)?.firstFrom,
+      () =>
+        (this.db.prepare('SELECT "from" FROM first_transfers WHERE token = ?').get(token) as any)
+          ?.from,
     );
   }
 
-  private setFirstFrom(token: string, firstFrom: string): void {
-    this.measure('setFirstFrom', () => this.statements.setFirstFrom.run(token, firstFrom));
+  private setFirstTransfer(transfer: Erc20Transfer): void {
+    this.measure('setFirstTransfer', () =>
+      this.db
+        .prepare(
+          'INSERT OR IGNORE INTO first_transfers (token, timestamp, "from", "to", amount, block_number, transaction_index, log_index, transaction_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        )
+        .run(
+          transfer.token_address,
+          transfer.timestamp.getTime(),
+          transfer.from,
+          transfer.to,
+          transfer.amount.toString(),
+          transfer.block.number,
+          transfer.transaction.index,
+          transfer.transaction.logIndex,
+          transfer.transaction.hash,
+        ),
+    );
   }
 
   private getBalance(token: string, address: string): bigint {
@@ -201,7 +218,7 @@ export class HolderCounter {
     );
   }
 
-  private updateStateProcessed(transfer: Erc20Event): void {
+  private updateStateProcessed(transfer: Erc20Transfer): void {
     this.measure('updateStateProcessed', () => {
       const res = this.db
         .prepare(
@@ -268,7 +285,7 @@ export class HolderCounter {
     }
   }
 
-  private async emitCallbackIfNesessary(transfer: Erc20Event) {
+  private async emitCallbackIfNesessary(transfer: Erc20Transfer) {
     const toStartOf = this.toStartOfFiveMinutes;
 
     if (this.state.lastCallbackTimestamp === -1) {
@@ -290,7 +307,7 @@ export class HolderCounter {
     const holders = this.getAllHolders(currentGroupStart);
 
     // Execute callback
-    await this.holdersChangedCallback(currentGroupStart, holders);
+    await this.holdersChangedHook(currentGroupStart, holders);
 
     // update callback state if callback is successful.
     // potential error (very rare case) – if pipe crashes between callback successfully wrote data somewhere else,
@@ -299,14 +316,16 @@ export class HolderCounter {
     this.flushState();
   }
 
-  public async processTransfer(transfer: Erc20Event) {
+  public async processTransfer(transfer: Erc20Transfer, onlyFirstTransfers: boolean) {
     this.transferMetrics.totalTransfers++;
 
+    const { from, to, token_address: token, amount, timestamp } = transfer;
+
     if (
-      transfer.timestamp.getTime() < this.state.processedTimestamp ||
-      (transfer.timestamp.getTime() === this.state.processedTimestamp &&
+      timestamp.getTime() < this.state.processedTimestamp ||
+      (timestamp.getTime() === this.state.processedTimestamp &&
         transfer.transaction.index < this.state.processedTxIndex) ||
-      (transfer.timestamp.getTime() === this.state.processedTimestamp &&
+      (timestamp.getTime() === this.state.processedTimestamp &&
         transfer.transaction.index === this.state.processedTxIndex &&
         transfer.transaction.logIndex <= this.state.processedLogIndex)
     ) {
@@ -315,9 +334,32 @@ export class HolderCounter {
       return;
     }
 
-    await this.emitCallbackIfNesessary(transfer);
+    if (onlyFirstTransfers) {
+      const firstFrom = this.getFirstFrom(token);
+      if (firstFrom !== undefined) {
+        return;
+      }
 
-    const { from, to, token_address: token, amount, timestamp } = transfer;
+      // trigger hook, update first transfer in DB and update processed state.
+      // we trigger hooks first, since in case of failure after hook's trigger,
+      // we will just call hook again (ClickHouse must handle duplicate items correctly)
+      await this.firstTransferHook(transfer);
+
+      this.db.prepare('BEGIN TRANSACTION').run();
+      try {
+        this.setFirstTransfer(transfer);
+        this.updateStateProcessed(transfer);
+        this.db.prepare('COMMIT').run();
+      } catch (err) {
+        this.logger.error(err);
+        this.db.prepare('ROLLBACK').run();
+        this.state = this.getState(); // reload state in case of error
+        throw err;
+      }
+      return;
+    }
+
+    await this.emitCallbackIfNesessary(transfer);
 
     const firstFrom = this.getFirstFrom(token);
     // first transfer was from non-zero address.
@@ -332,13 +374,8 @@ export class HolderCounter {
     try {
       if (firstFrom === undefined) {
         // for this token no first from was recorded
-        this.setFirstFrom(token, from);
-
-        if (from === ZERO_ADDRESS && this.firstMintCallback) {
-          // log first mint if from zero address
-          await this.firstMintCallback(timestamp.toISOString(), token, transfer.transaction.hash);
-          this.firstMintsCount++;
-        }
+        this.setFirstTransfer(transfer);
+        await this.firstTransferHook(transfer);
       }
 
       let newHolderCount = this.getHolderCount(token);
