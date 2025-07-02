@@ -14,7 +14,7 @@
 */
 
 
-CREATE TABLE IF NOT EXISTS ${network}_swaps_raw
+CREATE TABLE IF NOT EXISTS swaps_raw
 (
     timestamp           DateTime CODEC (DoubleDelta, ZSTD),
     token_a             String,
@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS ${network}_swaps_raw
 
 -- ############################################################################################################
 
-CREATE TABLE IF NOT EXISTS ${network}_swaps_raw_pool_gr
+CREATE TABLE IF NOT EXISTS swaps_raw_pool_gr
 (
     timestamp           DateTime CODEC (DoubleDelta, ZSTD),
     token_a             String,
@@ -93,14 +93,14 @@ CREATE TABLE IF NOT EXISTS ${network}_swaps_raw_pool_gr
       ORDER BY (pool_address, timestamp, transaction_index, log_index);
 
 
-CREATE MATERIALIZED VIEW IF NOT EXISTS ${network}_swaps_raw_pool_gr_mv TO ${network}_swaps_raw_pool_gr
+CREATE MATERIALIZED VIEW IF NOT EXISTS swaps_raw_pool_gr_mv TO swaps_raw_pool_gr
 AS
-SELECT * FROM ${network}_swaps_raw;
+SELECT * FROM swaps_raw;
 
 -- ############################################################################################################
 
 
-CREATE TABLE IF NOT EXISTS ${network}_vols_candles (
+CREATE TABLE IF NOT EXISTS vols_candles (
     timestamp				DateTime CODEC (DoubleDelta, ZSTD),
     pool_address        	String,
     token               	String,
@@ -114,7 +114,7 @@ CREATE TABLE IF NOT EXISTS ${network}_vols_candles (
 ENGINE = AggregatingMergeTree() ORDER BY (pool_address, timestamp);
 
 
-CREATE MATERIALIZED VIEW IF NOT EXISTS ${network}_vols_candles_mv TO ${network}_vols_candles
+CREATE MATERIALIZED VIEW IF NOT EXISTS vols_candles_mv TO vols_candles
 AS
 SELECT
     toStartOfMinute(s.timestamp) AS timestamp,
@@ -126,7 +126,7 @@ SELECT
     maxState(price_token_a_usdc) AS high_price_token_usdc,
     minState(price_token_a_usdc) AS low_price_token_usdc,
     argMaxState(price_token_a_usdc, tuple(s.timestamp, s.transaction_index, s.log_index)) AS close_price_token_usdc
-FROM ${network}_swaps_raw_pool_gr s
+FROM swaps_raw_pool_gr s
 WHERE price_token_a_usdc > 0
 GROUP BY pool_address, token, timestamp;
 
@@ -169,7 +169,7 @@ GROUP BY pool_address, token, timestamp;
 
 -- Materialized view to count swaps per token
 -- For example, can be used to filter out tokens with less than X swaps (garbage tokens).
-CREATE TABLE IF NOT EXISTS ${network}_token_swap_counts
+CREATE TABLE IF NOT EXISTS token_swap_counts
 (
     token String,
     swap_count UInt64
@@ -177,16 +177,16 @@ CREATE TABLE IF NOT EXISTS ${network}_token_swap_counts
     ORDER BY (token);
 
 
-CREATE MATERIALIZED VIEW IF NOT EXISTS ${network}_token_swap_counts_mv1 TO ${network}_token_swap_counts
+CREATE MATERIALIZED VIEW IF NOT EXISTS token_swap_counts_mv1 TO token_swap_counts
 AS
 SELECT 
     token_a AS token,
     sign AS swap_count
-FROM ${network}_swaps_raw;
+FROM swaps_raw;
 
-CREATE MATERIALIZED VIEW IF NOT EXISTS ${network}_token_swap_counts_mv2 TO ${network}_token_swap_counts
+CREATE MATERIALIZED VIEW IF NOT EXISTS token_swap_counts_mv2 TO token_swap_counts
 AS
 SELECT 
     token_b AS token,
     sign AS swap_count
-FROM ${network}_swaps_raw;
+FROM swaps_raw;

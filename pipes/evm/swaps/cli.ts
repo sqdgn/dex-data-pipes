@@ -7,14 +7,13 @@ import { getConfig } from '../config';
 
 const config = getConfig();
 
-const clickhouse = createClickhouseClient();
-
 const logger = createLogger('evm dex swaps').child({ network: config.network });
 
 logger.info(`Local database: ${config.dbPath}`);
 
 async function main() {
-  await ensureTables(clickhouse, __dirname, config.networkUnderscored);
+  const clickhouse = await createClickhouseClient();
+  await ensureTables(clickhouse, __dirname);
 
   const ds = new EvmSwapStream({
     portal: process.env.PORTAL_URL ?? config.portal.url,
@@ -34,13 +33,15 @@ async function main() {
     },
     logger,
     state: new ClickhouseState(clickhouse, {
-      table: `${config.networkUnderscored}_sync_status`,
-      id: `${config.networkUnderscored}-swaps${!!process.env.BLOCK_TO ? '-pools' : ''}`,
+      table: `sync_status`,
+      id: `swaps${!!process.env.BLOCK_TO ? '-pools' : ''}`,
       onRollback: async ({ state, latest }) => {
+        if (!latest.timestamp) {
+          return; // fresh table
+        }
         await state.removeAllRows({
-          table: `${config.networkUnderscored}_swaps_raw`,
-          where: 'block_number > {bl:UInt32}',
-          params: { bl: latest.number },
+          table: `swaps_raw`,
+          where: `timestamp > ${latest.timestamp}`,
         });
       },
     }),
@@ -52,7 +53,7 @@ async function main() {
     await new PriceExtendStream(clickhouse, config.network).pipe(),
   )) {
     await clickhouse.insert({
-      table: `${config.network}_swaps_raw`,
+      table: `swaps_raw`,
       values: swaps.map((s) => {
         const obj = {
           factory_address: s.factory.address,
