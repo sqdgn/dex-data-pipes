@@ -29,7 +29,7 @@ async function main() {
     state: new ClickhouseState(clickhouse, {
       table: `sync_status`,
       database: process.env.CLICKHOUSE_DB,
-      id: `erc20_transfers`,
+      id: `erc20_transfers` + (onlyFirstTransfers ? '_onlyFirstTransfers' : ''),
       onRollback: async ({ state, latest }) => {
         if (!latest.timestamp) {
           return; // fresh table

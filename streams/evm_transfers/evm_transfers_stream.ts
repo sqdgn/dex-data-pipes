@@ -130,7 +130,18 @@ export class EvmTransfersStream extends PortalAbstractStream<Erc20Transfer, Args
             const transferLogs = block.logs.filter((l: any) => abi_events.Transfer.is(l)) as any[];
 
             for (const l of transferLogs) {
-              const data = abi_events.Transfer.decode(l);
+              let data: {
+                readonly from: string;
+                readonly to: string;
+                readonly value: bigint;
+              };
+              try {
+                data = abi_events.Transfer.decode(l);
+              } catch {
+                // there can be errors like https://github.com/subsquid/squid-sdk/issues/404, so just continue
+                continue;
+              }
+
               const event = {
                 from: data.from,
                 to: data.to,
