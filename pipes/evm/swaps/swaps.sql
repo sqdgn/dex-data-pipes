@@ -101,18 +101,21 @@ SELECT * FROM swaps_raw;
 
 
 CREATE TABLE IF NOT EXISTS vols_candles (
-    timestamp				DateTime CODEC (DoubleDelta, ZSTD),
-    pool_address        	String,
-    token               	String,
-    volume_usdc				AggregateFunction(sum, Float64),
-    swap_count	         	AggregateFunction(sum, Int32),
-	open_price_token_usdc	AggregateFunction(argMinState, Float64, Tuple(DateTime, UInt16, UInt16)),
+    timestamp                DateTime CODEC (DoubleDelta, ZSTD),
+    pool_address            String,
+    token                   String,
+    volume_usdc             AggregateFunction(sum, Float64),
+    swap_count              AggregateFunction(sum, Int32),
+    buy_count               AggregateFunction(sum, Int32),
+    sell_count              AggregateFunction(sum, Int32),
+    buy_volume_usdc         AggregateFunction(sum, Float64),
+    sell_volume_usdc        AggregateFunction(sum, Float64),
+    open_price_token_usdc   AggregateFunction(argMinState, Float64, Tuple(DateTime, UInt16, UInt16)),
     high_price_token_usdc   AggregateFunction(max, Float64),
     low_price_token_usdc    AggregateFunction(min, Float64),
     close_price_token_usdc  AggregateFunction(argMaxState, Float64, Tuple(DateTime, UInt16, UInt16))
 )
 ENGINE = AggregatingMergeTree() ORDER BY (pool_address, timestamp);
-
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS vols_candles_mv TO vols_candles
 AS
@@ -122,6 +125,10 @@ SELECT
     token_a AS token,
     sumState(ABS(amount_b * price_token_b_usdc) * sign) AS volume_usdc,
     sumState(toInt32(sign)) AS swap_count,
+    sumState(if(amount_a_raw < 0, toInt32(sign), 0)) AS buy_count,
+    sumState(if(amount_a_raw > 0, toInt32(sign), 0)) AS sell_count,
+    sumState(if(amount_a_raw < 0, ABS(amount_a * price_token_a_usdc) * sign, 0)) AS buy_volume_usdc,
+    sumState(if(amount_a_raw > 0, ABS(amount_a * price_token_a_usdc) * sign, 0)) AS sell_volume_usdc,
     argMinState(price_token_a_usdc, tuple(s.timestamp, s.transaction_index, s.log_index)) AS open_price_token_usdc,
     maxState(price_token_a_usdc) AS high_price_token_usdc,
     minState(price_token_a_usdc) AS low_price_token_usdc,
@@ -148,21 +155,27 @@ GROUP BY pool_address, token, timestamp;
         AND ABS(amount_b) <= 10000 AND ABS(amount_b) >= 0.1
 
     Query data (must be 1-minute multiple):
-        SELECT
-            --toStartOfInterval(timestamp, INTERVAL 5 minute) AS timestamp,
-            toStartOfInterval(timestamp, INTERVAL 24 HOUR) AS timestamp,
-        --	pool_address,
-            sumMerge(volume_usdc) AS swap_volume_usdc,
-            countMerge(swap_count) AS swap_count,
-            argMinMerge(open_price_token_usdc) AS open,
-            maxMerge(high_price_token_usdc) AS high,
-            minMerge(low_price_token_usdc) AS low,
-            argMaxMerge(close_price_token_usdc) AS close,
-            (close-open) / open AS rise
-        FROM vols_candles
-        WHERE pool_address = lower('0xac534fc720fec7cd6b008765cd255074e0742152')
-        GROUP BY pool_address, timestamp
-        ORDER BY pool_address, timestamp
+    
+    SELECT
+        toStartOfInterval(timestamp, INTERVAL 24 HOUR) AS timestamp,
+    --	pool_address,
+        sumMerge(volume_usdc) AS swap_volume_usdc,
+        sumMerge(buy_volume_usdc) AS buy_volume_usdc,
+        sumMerge(sell_volume_usdc) AS sell_volume_usdc,	
+        sumMerge(swap_count) AS swap_count,
+        sumMerge(buy_count) AS buy_count,
+        sumMerge(sell_count) AS sell_count,
+        argMinMerge(open_price_token_usdc) AS open,
+        maxMerge(high_price_token_usdc) AS high,
+        minMerge(low_price_token_usdc) AS low,
+        argMaxMerge(close_price_token_usdc) AS close,
+        (close-open) / open AS rise
+    FROM vols_candles
+    WHERE pool_address = lower('0x9d89c0cb73143927761534143747e26c47a1589f') --AND timestamp = '2025-04-07 13:05:00'
+    GROUP BY pool_address, timestamp
+    ORDER BY pool_address, timestamp
+
+
 */
 
 -- ############################################################################################################
