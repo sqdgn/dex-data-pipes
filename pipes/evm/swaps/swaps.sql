@@ -203,3 +203,15 @@ SELECT
     token_b AS token,
     sign AS swap_count
 FROM swaps_raw;
+
+/*
+
+    To get buyers/sellers count, use query:
+
+    SELECT
+        countDistinctIf(account, amount_a_raw < 0) AS buyers,
+        countDistinctIf(account, amount_a_raw > 0) AS sellers
+    FROM swaps_raw_pool_gr
+    WHERE pool_address = lower('0xa6c7fbd1b4c71673dfdadfaa9d17f14833d3245e') 
+        AND `timestamp` >= NOW() - INTERVAL 24 HOUR
+*/
