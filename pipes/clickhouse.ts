@@ -34,6 +34,10 @@ export async function ensureTables(
       query = table.replaceAll('${network}', networkReplace);
       await clickhouse.command({ query });
     } catch (e: any) {
+      if (e.type === 'SYNTAX_ERROR' && e.message?.includes('Empty query')) {
+        // not a critical error, query with comments only - can continue
+        continue;
+      }
       console.error(`======================`);
       console.error(query.trim());
       console.error(`======================`);
