@@ -8,11 +8,13 @@ export const handleUniswapV4Swap = (log: any): DecodedEvmSwap | null => {
 
   return {
     from: {
-      amount: data.amount0,
+      amount: -data.amount0, // negation for both amounts as Uniswap V4 uses reverse notation,
+      // in stream here we use Uniswap V3 (pool-related) notation (negative value – user withdraws token, positive – user deposits
+      // token into a pool)
       sender: data.sender,
     },
     to: {
-      amount: data.amount1,
+      amount: -data.amount1,
     },
     liquidity: data.liquidity,
     sqrtPriceX96: data.sqrtPriceX96,
