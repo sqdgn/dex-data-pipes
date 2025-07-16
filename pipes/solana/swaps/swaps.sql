@@ -10,6 +10,8 @@ CREATE TABLE IF NOT EXISTS solana_swaps_raw
     token_b_symbol               String,
     token_a_decimals             UInt8,
     token_b_decimals             UInt8,
+    token_a_creation_date        DateTime CODEC (DoubleDelta, ZSTD),
+    token_b_creation_date        DateTime CODEC (DoubleDelta, ZSTD),
     token_a_usdc_price           Float64,
     token_b_usdc_price           Float64,
     token_a_balance              Float64,

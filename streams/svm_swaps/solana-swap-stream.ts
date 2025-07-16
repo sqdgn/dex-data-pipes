@@ -1,9 +1,10 @@
-import { type BlockRef, PortalAbstractStream } from '@sqd-pipes/core';
+import { PortalAbstractStream } from '@sqd-pipes/core';
 import { getInstructionDescriptor } from '@subsquid/solana-stream';
 import {
   getTransaction,
   getTransactionAccount,
   getTransactionHash,
+  timeIt,
 } from './utils';
 import * as meteoraDamm from './contracts/meteora-damm';
 import * as meteoraDlmm from './contracts/meteora-dlmm';
@@ -135,9 +136,21 @@ export class SolanaSwapsStream extends PortalAbstractStream<SolanaSwap, Args> {
       }
     }
 
-    this.tokenStorage.insertTokens(tokens);
-    this.tokenStorage.setTokensMetadata(tokensMetadata);
-    this.tokenStorage.updateTokensMetadata(tokenMetadataUpdates);
+    timeIt(
+      this.logger,
+      'Processing tokens batch',
+      () =>
+        this.tokenStorage.processBatch(
+          tokens,
+          tokensMetadata,
+          tokenMetadataUpdates
+        ),
+      {
+        tokens: tokens.length,
+        tokensMetadata: tokensMetadata.length,
+        tokenMetadataUpdates: tokenMetadataUpdates.length,
+      }
+    );
   }
 
   processSwapInstructions(blocks: SwapStreamBlock[]) {
@@ -392,7 +405,9 @@ export class SolanaSwapsStream extends PortalAbstractStream<SolanaSwap, Args> {
           // Process token-related instructions first
           // to ensure we have the necessary context
           // before processing swaps
-          this.processTokenInstructions(blocks);
+          timeIt(this.logger, 'Processing token instructions', () => {
+            this.processTokenInstructions(blocks);
+          });
 
           if (this.options.args.onlyTokens) {
             // If onlyTokens is true - just ack the batch and return
@@ -401,7 +416,9 @@ export class SolanaSwapsStream extends PortalAbstractStream<SolanaSwap, Args> {
           }
 
           // Process swaps
-          const swaps = this.processSwapInstructions(blocks);
+          const swaps = timeIt(this.logger, 'Processing swaps', () =>
+            this.processSwapInstructions(blocks)
+          );
 
           if (!swaps.length) {
             // If we have an empty array of data, we must acknowledge the batch anyway to mark it as processed

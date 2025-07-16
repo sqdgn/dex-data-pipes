@@ -87,7 +87,7 @@ export function handleCreateMetadata(ins: Instruction): SolanaTokenMetadata {
     name: md.args.data.name,
     symbol: md.args.data.symbol,
     // uri: md.args.data.uri,
-    isMutable: md.args.isMutable,
+    mutable: md.args.isMutable ? 1 : 0,
   };
 }
 
@@ -99,6 +99,6 @@ export function handleUpdateMetadata(
     metadataAcc: md.accounts.metadata,
     name: md.args.data?.name,
     symbol: md.args.data?.symbol,
-    uri: md.args.data?.uri,
+    // uri: md.args.data?.uri,
   };
 }

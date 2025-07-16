@@ -108,8 +108,8 @@ export type SolanaTokenMetadata = {
   symbol: string;
   // Uri to additional metadata
   // uri: string;
-  // Metadata mutability
-  isMutable: boolean;
+  // Metadata mutability (0 = non-mutable)
+  mutable: number;
 };
 
 export type SolanaTokenMetadataUpdate = {

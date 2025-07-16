@@ -9,19 +9,31 @@ import _ from 'lodash';
 import { TOKENS } from './utils';
 
 export class TokenStorage {
-  db: DatabaseSync;
-  statements: Record<string, StatementSync>;
-  tokenByMintAcc: Map<string, SolanaToken>;
-  tokenByMetadataAcc: Map<string, SolanaToken>;
+  private db: DatabaseSync;
+  private statements: Record<string, StatementSync>;
+  private tokenByMintAcc: Map<string, SolanaToken>;
+  private tokenByMetadataAcc: Map<string, SolanaToken>;
 
+  private readonly insertKeys: (keyof SolanaToken)[] = [
+    'mintAcc',
+    'decimals',
+    'metadataAcc',
+    'name',
+    'symbol',
+    'mutable',
+    'createdAt',
+    'createdAtBlock',
+    'creationTxHash',
+  ];
   constructor(private readonly dbPath: string) {
     this.db = new DatabaseSync(this.dbPath);
     this.db.exec('PRAGMA journal_mode = WAL');
+    this.db.exec('PRAGMA synchronous = NORMAL');
     this.db.exec(
       `CREATE TABLE IF NOT EXISTS "spl_tokens" (
         mintAcc TEXT NOT NULL,
         decimals INTEGER NOT NULL,
-        metadataAcc TEXT,
+        metadataAcc TEXT UNIQUE,
         name TEXT,
         symbol TEXT,
         mutable INTEGER,
@@ -34,17 +46,9 @@ export class TokenStorage {
     this.statements = {
       insert: this.db.prepare(
         `INSERT OR IGNORE INTO "spl_tokens" (
-            mintAcc,
-            decimals,
-            createdAt,
-            createdAtBlock,
-            creationTxHash
+            ${this.insertKeys.join(', ')}
         ) VALUES (
-            :mintAcc,
-            :decimals,
-            :createdAt,
-            :createdAtBlock,
-            :creationTxHash
+            ${this.insertKeys.map((k) => `:${k}`).join(', ')}
         )`
       ),
       setMetadata: this.db.prepare(
@@ -52,15 +56,17 @@ export class TokenStorage {
             metadataAcc=:metadataAcc,
             name=:name,
             symbol=:symbol,
-            mutable=:isMutable
+            mutable=:mutable,
+            name=:name,
+            symbol=:symbol
         WHERE mintAcc=:mintAcc`
       ),
-      updateMetadata: this.db.prepare(
-        `UPDATE "spl_tokens" SET
-            name=COALESCE(:name, name),
-            symbol=COALESCE(:symbol, symbol)
-        WHERE metadataAcc=:metadataAcc`
+      updateName: this.db.prepare(
+        `UPDATE "spl_tokens" SET name=:name WHERE metadataAcc=:metadataAcc`
       ),
+      updateSymbol: this.db.prepare(`
+        UPDATE "spl_tokens" SET symbol=:symbol WHERE metadataAcc=:metadataAcc
+      `),
     };
     this.tokenByMintAcc = new Map();
     this.tokenByMetadataAcc = new Map();
@@ -117,18 +123,58 @@ export class TokenStorage {
       // If the token was not found in cache, we skip the update
       return;
     }
-    // Ignore undefined | null values in updateData
-    updateData = Object.fromEntries(
-      Object.entries(updateData).filter(
-        ([, value]) => value !== undefined && value !== null
-      )
-    ) as SolanaTokenMetadata | SolanaTokenMetadataUpdate;
-    const updated = {
-      ...current,
-      ...updateData,
-    };
+    // lodash.merge ignores `undefined`
+    const updated = _.merge(current, updateData);
     this.tokenByMintAcc.set(updated.mintAcc, updated);
     this.tokenByMetadataAcc.set(updated.metadataAcc, updated);
+  }
+
+  processBatch(
+    inserts: SolanaTokenMintData[],
+    metadataAssigns: SolanaTokenMetadata[],
+    metadataUpdates: SolanaTokenMetadataUpdate[]
+  ) {
+    const insertsByMint = new Map<string, SolanaToken>(
+      inserts.map((t) => [t.mintAcc, t])
+    );
+    const enrichmentsByMint = new Map<string, SolanaTokenMetadata>(
+      metadataAssigns.map((t) => [t.mintAcc, t])
+    );
+    const enrichmentsByMeta = new Map<string, SolanaTokenMetadata>(
+      metadataAssigns.map((t) => [t.metadataAcc, t])
+    );
+    const updatesGrouped = Object.entries(
+      _.groupBy(metadataUpdates, (t) => t.metadataAcc)
+    );
+    const updatesByMeta = new Map<string, SolanaTokenMetadataUpdate>(
+      updatesGrouped.map(([metaAcc, updates]) => [metaAcc, _.merge(updates)])
+    );
+
+    for (const update of updatesByMeta.values()) {
+      const enrichment = enrichmentsByMeta.get(update.metadataAcc);
+      if (enrichment) {
+        // Merge update into enrichment
+        updatesByMeta.delete(update.metadataAcc);
+        const merged = _.merge(enrichment, update);
+        enrichmentsByMint.set(enrichment.mintAcc, merged);
+        enrichmentsByMeta.set(enrichment.metadataAcc, merged);
+      }
+    }
+
+    for (const enrichment of enrichmentsByMint.values()) {
+      const token = insertsByMint.get(enrichment.mintAcc);
+      if (token) {
+        // Merge enrichment into insert
+        enrichmentsByMint.delete(token.mintAcc);
+        insertsByMint.set(token.mintAcc, _.merge(token, enrichment));
+      }
+    }
+
+    this.db.exec(`BEGIN TRANSACTION`);
+    this.insertTokens(Array.from(insertsByMint.values()));
+    this.setTokensMetadata(Array.from(enrichmentsByMint.values()));
+    this.updateTokensMetadata(Array.from(updatesByMeta.values()));
+    this.db.exec(`COMMIT`);
   }
 
   insertTokens(tokens: SolanaTokenMintData[]) {
@@ -142,7 +188,6 @@ export class TokenStorage {
     for (const meta of tokensMetadata) {
       this.statements.setMetadata.run({
         ...meta,
-        isMutable: meta.isMutable ? 1 : 0,
       });
       this.updateTokenCache(meta);
     }
@@ -150,12 +195,21 @@ export class TokenStorage {
 
   updateTokensMetadata(tokensMetadata: SolanaTokenMetadataUpdate[]) {
     for (const meta of tokensMetadata) {
-      this.statements.updateMetadata.run({
-        metadataAcc: meta.metadataAcc,
-        name: meta.name || null,
-        symbol: meta.symbol || null,
-      });
-      this.updateTokenCache(meta);
+      if (meta.name !== undefined) {
+        this.statements.updateName.run({
+          metadataAcc: meta.metadataAcc,
+          name: meta.name,
+        });
+      }
+      if (meta.symbol !== undefined) {
+        this.statements.updateSymbol.run({
+          metadataAcc: meta.metadataAcc,
+          symbol: meta.symbol,
+        });
+      }
+      if (meta.symbol !== undefined || meta.name !== undefined) {
+        this.updateTokenCache(meta);
+      }
     }
   }
 

@@ -7,6 +7,7 @@ import { PublicKey } from '@solana/web3.js';
 import { Block, DecodedTransfer, Instruction, SwappedTokenData } from './types';
 import * as tokenProgram from './contracts/token-program';
 import * as token2022Program from './contracts/token-2022-program';
+import { Logger } from 'pino';
 
 export function getInstructionBalances(ins: Instruction, block: Block) {
   return (
@@ -345,4 +346,34 @@ export function asDecimalString(amount: bigint, decimals: number) {
   return digits <= decimals
     ? `${sign}0.${_.padStart(amountStr, decimals, '0')}`
     : `${sign}${amountStr.slice(0, -decimals)}.${amountStr.slice(-decimals)}`;
+}
+
+const timeItMap = new Map<string, number[]>();
+export function timeIt<T>(
+  logger: Logger,
+  label: string,
+  fn: () => T,
+  context?: Record<string, unknown>
+): T {
+  const start = performance.now();
+  const logTime = () => {
+    const duration = performance.now() - start;
+    // Keep only the last 100 times
+    const times = timeItMap.get(label)?.slice(-99) || [];
+    times.push(duration);
+    timeItMap.set(label, times);
+    logger.debug(
+      `${label} took ${duration.toFixed(2)}ms (last ${times.length}: ` +
+        `min=${_.min(times)?.toFixed(2)}, ` +
+        `max=${_.max(times)?.toFixed(2)}, ` +
+        `avg=${_.mean(times).toFixed(2)})` +
+        (context ? ` ${JSON.stringify(context)}` : '')
+    );
+  };
+  const r = fn();
+  if (r instanceof Promise) {
+    return r.then(logTime) as T;
+  }
+  logTime();
+  return r;
 }
