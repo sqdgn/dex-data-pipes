@@ -14,3 +14,4 @@ cd $SCRIPT_PATH
 COMMIT_HASH=$(git rev-parse HEAD)
 
 docker build -t $IMAGE_NAME:$COMMIT_HASH .
+docker tag $IMAGE_NAME:$COMMIT_HASH $IMAGE_NAME:latest
