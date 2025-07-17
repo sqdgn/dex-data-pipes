@@ -54,27 +54,23 @@ CREATE TABLE IF NOT EXISTS solana_dex_swaps_10s_candles (
     open_token_a            AggregateFunction(argMinState, Float64, Tuple(DateTime, UInt16, Array (UInt16))),
     high_token_a            SimpleAggregateFunction(max, Float64),
     low_token_a             SimpleAggregateFunction(min, Float64),
-    close_token_a           AggregateFunction(argMaxState, Float64, Tuple(DateTime, UInt16, Array (UInt16)))
+    close_token_a           AggregateFunction(argMaxState, Float64, Tuple(DateTime, UInt16, Array (UInt16))),
     -- Token B
     open_token_b            AggregateFunction(argMinState, Float64, Tuple(DateTime, UInt16, Array (UInt16))),
     high_token_b            SimpleAggregateFunction(max, Float64),
     low_token_b             SimpleAggregateFunction(min, Float64),
     close_token_b           AggregateFunction(argMaxState, Float64, Tuple(DateTime, UInt16, Array (UInt16))),
     -- Other stats
-    count                   SimpleAggregateFunction(sum, Int8),
+    count                   SimpleAggregateFunction(sum, Int64),
     volume_usdc             SimpleAggregateFunction(sum, Float64),
     avg_slippage            AggregateFunction(avgState, Float64),
-    max_pool_tvl            SimpleAggregateFunction(max, Float64),
-    pool_tvl_volume_ratio   SimpleAggregateFunction(max, Float64),
+    max_pool_tvl            SimpleAggregateFunction(max, Float64)
 ) ENGINE = AggregatingMergeTree()
-  ORDER BY (pool_address, timestamp)
+  ORDER BY (timestamp, pool_address, token_a, token_b, dex)
   TTL timestamp + INTERVAL 1 YEAR;
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS solana_dex_swaps_10s_candles_mv
             TO solana_dex_swaps_10s_candles
-            ENGINE AggregatingMergeTree()
-            ORDER BY (timestamp, pool_address, token_a, token_b, dex)
-            POPULATE
 AS
 WITH tuple(original.timestamp, transaction_index, instruction_address)  AS swap_order
 SELECT toStartOfInterval(timestamp, INTERVAL 10 SECOND)                 AS timestamp,
@@ -91,14 +87,12 @@ SELECT toStartOfInterval(timestamp, INTERVAL 10 SECOND)                 AS times
        argMinState(token_b_usdc_price, swap_order)                      AS open_token_b,
        maxSimpleState(token_b_usdc_price)                               AS high_token_b,
        minSimpleState(token_b_usdc_price)                               AS low_token_b,
-       argMaxState(token_b_usdc_price, swap_order)                    AS close_token_b,
+       argMaxState(token_b_usdc_price, swap_order)                      AS close_token_b,
 --     Other stats
        sumSimpleState(sign)                                             AS count,
        sumSimpleState(abs(amount_a * token_a_usdc_price) * sign)        AS volume_usdc,
        avgState(slippage)                                               AS avg_slippage,
-       maxSimpleState(pool_tvl)                                         AS max_pool_tvl,
---     FIXME: Shouldn't this be just volume_usdc/max_pool_tvl ?
-       maxSimpleState(abs(amount_a * token_a_usdc_price) / pool_tvl)    AS pool_tvl_volume_ratio
+       maxSimpleState(pool_tvl)                                         AS max_pool_tvl
 FROM solana_swaps_raw original
 -- Temporarily we filter out that swaps completely
 WHERE slippage < 10 and abs(amount_a * token_a_usdc_price) >= 0.01 and amount_a != 0 and amount_b != 0
