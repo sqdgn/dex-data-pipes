@@ -238,17 +238,23 @@ export class PriceExtendStream {
     extTokenB.amount = tokenAIsOutputToken ? -tokenB.amount : tokenB.amount;
 
     if (tokenAIsOutputToken) {
-      // TOKEN A - ENTRY
-      positionsA.entry(amountA, priceA);
-      // TOKEN B - EXIT
-      const exitSummary = positionsB.exit(amountB, priceB);
-      extTokenB.positionExitSummary = exitSummary;
+      // For now we only process positions against allowed quote tokens
+      if (tokenBIsAllowedQuote) {
+        // TOKEN A - ENTRY
+        positionsA.entry(amountA, priceA);
+        // TOKEN B - EXIT
+        const exitSummary = positionsB.exit(amountB, priceB);
+        extTokenB.positionExitSummary = exitSummary;
+      }
     } else {
-      // TOKEN A - EXIT
-      const exitSummary = positionsA.exit(amountA, priceA);
-      extTokenA.positionExitSummary = exitSummary;
-      // TOKEN B - ENTRY
-      positionsB.entry(amountB, priceB);
+      // For now we only process positions against allowed quote tokens
+      if (tokenBIsAllowedQuote) {
+        // TOKEN A - EXIT
+        const exitSummary = positionsA.exit(amountA, priceA);
+        extTokenA.positionExitSummary = exitSummary;
+        // TOKEN B - ENTRY
+        positionsB.entry(amountB, priceB);
+      }
     }
 
     extTokenA.balance = positionsA.totalBalance;
