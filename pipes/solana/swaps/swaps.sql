@@ -222,9 +222,6 @@ AS
     (timestamp BETWEEN {start_date:DateTime} AND {end_date:DateTime}) AND
     `token_b` IN {allowed_quote_tokens:Array(String)}
   GROUP BY wallet
-  HAVING
-    `total_cost_usdc` >= {minimum_total_cost_usd:Float64} AND
-    `distinct_tokens` >= {minimum_distinct_tokens:UInt32}
   ORDER BY `pnl_percent` DESC;
 
 CREATE VIEW IF NOT EXISTS tokens_with_last_prices AS
