@@ -88,17 +88,29 @@ async function main() {
             token_b_decimals: s.quoteToken.decimals,
             token_b_symbol: s.quoteToken.symbol || '[unknown]',
             // Token prices
-            token_a_usdc_price: s.baseToken.usdcPrice,
-            token_b_usdc_price: s.quoteToken.usdcPrice,
+            token_a_usdc_price: s.baseToken.priceData?.priceUsdc || 0,
+            token_b_usdc_price: s.quoteToken.priceData?.priceUsdc || 0,
+            token_a_pricing_pool: s.baseToken.priceData?.poolAddress || '',
+            token_b_pricing_pool: s.quoteToken.priceData?.poolAddress || '',
+            token_a_best_pricing_pool_selected:
+              s.baseToken.priceData?.isBestPricingPoolSelected || false,
+            token_b_best_pricing_pool_selected:
+              s.baseToken.priceData?.isBestPricingPoolSelected || false,
             // Trader stats
             token_a_balance: s.baseToken.balance,
             token_b_balance: s.quoteToken.balance,
-            token_a_profit_usdc: s.baseToken.profitUsdc,
-            token_b_profit_usdc: s.quoteToken.profitUsdc,
-            token_a_cost_usdc: s.baseToken.costUsdc,
-            token_b_cost_usdc: s.quoteToken.costUsdc,
-            token_a_acquisition_cost_usd: s.baseToken.tokenAcquisitionCostUsd,
-            token_b_acquisition_cost_usd: s.quoteToken.tokenAcquisitionCostUsd,
+            token_a_profit_usdc:
+              s.baseToken.positionExitSummary?.profitUsdc || 0,
+            token_b_profit_usdc:
+              s.quoteToken.positionExitSummary?.profitUsdc || 0,
+            token_a_cost_usdc:
+              s.baseToken.positionExitSummary?.entryCostUsdc || 0,
+            token_b_cost_usdc:
+              s.quoteToken.positionExitSummary?.entryCostUsdc || 0,
+            token_a_wins: s.baseToken.wins,
+            token_b_wins: s.quoteToken.wins,
+            token_a_loses: s.baseToken.loses,
+            token_b_loses: s.quoteToken.loses,
             // Timestamp
             timestamp: toUnixTime(s.timestamp),
             // Slippage

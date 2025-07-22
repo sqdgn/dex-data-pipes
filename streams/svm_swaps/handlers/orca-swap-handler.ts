@@ -1,3 +1,4 @@
+import assert from 'node:assert';
 import * as tokenProgram from '../contracts/token-program';
 import * as whirlpool from '../contracts/orca-whirlpool';
 import {
@@ -7,6 +8,7 @@ import {
   getPostTokenBalance,
   sqrtPriceX64ToPrice,
   getTokenReserves,
+  getTransactionHash,
 } from '../utils';
 import { PostTokenBalance } from '@subsquid/solana-normalization';
 import { getInstructionDescriptor } from '@subsquid/solana-stream';
@@ -58,6 +60,16 @@ export function handleWhirlpool(
   } = getPoolAccounts(ins);
 
   const reserves = getTokenReserves(ins, block, [tokenVaultA, tokenVaultB]);
+  const reserveIn = reserves[tokenIn.postMint];
+  const reserveOut = reserves[tokenOut.postMint];
+  assert(
+    reserveIn,
+    `Orca: Missing input reserve. Tx hash: ${getTransactionHash(ins, block)}`
+  );
+  assert(
+    reserveOut,
+    `Orca: Missing output reserve. Tx hash: ${getTransactionHash(ins, block)}`
+  );
 
   return {
     type: 'orca_whirlpool',
@@ -67,13 +79,13 @@ export function handleWhirlpool(
       amount: inputTokenAmount,
       mintAcc: tokenIn.postMint,
       decimals: tokenIn.postDecimals,
-      reserves: reserves[tokenIn.postMint] || undefined,
+      reserves: reserveIn,
     },
     output: {
       amount: outputTokenAmount,
       mintAcc: tokenOut.postMint,
       decimals: tokenOut.postDecimals,
-      reserves: reserves[tokenOut.postMint] || undefined,
+      reserves: reserveOut,
     },
     slippage,
   };

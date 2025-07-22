@@ -1,14 +1,29 @@
 import { ClickHouseClient } from '@clickhouse/client';
-import { getPrice, sortTokenPair, timeIt, TOKENS } from './utils';
+import {
+  getPrice,
+  QUOTE_TOKENS,
+  sortTokenPair,
+  timeIt,
+  USD_STABLECOINS,
+} from './utils';
 import { SolanaSwap, SwappedTokenData } from './types';
 import { createLogger } from '../../pipes/utils';
+import _ from 'lodash';
+import { DbSwap, ExitSummary, TokenPositions } from './util/TokenPositions';
+import { Logger } from 'pino';
+
+export type TokenPriceData = {
+  poolAddress: string;
+  isBestPricingPoolSelected: boolean;
+  priceUsdc: number;
+};
 
 export type ExtendedSwappedTokenData = SwappedTokenData & {
-  usdcPrice: number;
+  priceData?: TokenPriceData;
   balance: number;
-  profitUsdc: number;
-  costUsdc: number;
-  tokenAcquisitionCostUsd: number;
+  wins: number;
+  loses: number;
+  positionExitSummary?: ExitSummary;
 };
 
 export type ExtendedSolanaSwap = SolanaSwap & {
@@ -16,39 +31,120 @@ export type ExtendedSolanaSwap = SolanaSwap & {
   quoteToken: ExtendedSwappedTokenData;
 };
 
-export class PriceExtendStream {
-  private logger;
+type TokenPriceDbRow = {
+  best_pool_address: string | null;
+  pool_address: string;
+  token: string;
+  price: number;
+};
 
-  constructor(private client?: ClickHouseClient) {
+function toStartOfPrevHour(date: Date) {
+  const hour = 60 * 60 * 1000;
+  const startOfPrevHour = new Date(date.getTime() - hour);
+  startOfPrevHour.setUTCMinutes(0, 0, 0);
+  return startOfPrevHour;
+}
+
+export class PriceExtendStream {
+  private logger: Logger;
+  // User token holdings map, ie.:
+  // `${tokenMintAcc}:${userAcc}` => Positions FIFO queue
+  private accountPositions = new Map<string, TokenPositions>();
+  // tokenMintAcc => TokenPriceData map
+  private tokenPrices = new Map<string, TokenPriceData>();
+  // Ending date currently used to select best pricing pools for each token
+  private bestPoolMaxDate: Date | undefined;
+
+  constructor(private client: ClickHouseClient) {
     this.logger = createLogger('price-extend-stream');
   }
 
-  private async *restoreTokenPrices() {
-    if (!this.client) return;
-
-    // Get latest token prices from swaps where one token is USDC
-    // TODO: And amount_a !=0 and amount_b != 0?
+  private async *refetchTokenPrices(bestPoolMaxDate: Date) {
+    const bestPoolTimeInterval = 14 * 24 * 60 * 60 * 1000; // 2 weeks
+    // Get latest prices for each token, based on pool chosen from
+    // `tokens_with_best_quote_pools` (if exist) or ANY quote pool otherwise.
     const result = await this.client.query({
       query: `
-        SELECT token_a as token, token_a_usdc_price as price
-        FROM solana_swaps_raw
-        WHERE token_a = '${TOKENS.SOL}'
-          AND token_b = '${TOKENS.USDC}'
-          AND sign > 0
-        ORDER BY timestamp DESC
-        LIMIT 1
+          SELECT
+            token,
+            pool_address,
+            best_pool_address,
+            price
+          FROM tokens_with_last_prices(
+            min_timestamp={minTimestamp:DateTime},
+            max_timestamp={maxTimestamp:DateTime}
+          )
       `,
+      query_params: {
+        minTimestamp: new Date(
+          bestPoolMaxDate.getTime() - bestPoolTimeInterval
+        ),
+        maxTimestamp: bestPoolMaxDate,
+      },
       format: 'JSONEachRow',
     });
 
-    for await (const rows of result.stream<{
-      token: string;
-      price: number;
-    }>()) {
+    for await (const rows of result.stream<TokenPriceDbRow>()) {
       for (const row of rows) {
         yield row.json();
       }
     }
+  }
+
+  private async reloadTokenPrices(bestPoolMaxDate: Date) {
+    this.logger.info(
+      `Reloading token prices (best pool max date: ${bestPoolMaxDate.toISOString()})...`
+    );
+    for await (const row of this.refetchTokenPrices(bestPoolMaxDate)) {
+      this.tokenPrices.set(row.token, {
+        isBestPricingPoolSelected: row.best_pool_address === row.pool_address,
+        poolAddress: row.pool_address,
+        priceUsdc: row.price,
+      });
+    }
+    for (const token of USD_STABLECOINS) {
+      // For USD stablecoins we always use a static price of 1 USD
+      this.tokenPrices.set(token, {
+        isBestPricingPoolSelected: true,
+        poolAddress: '[NONE]',
+        priceUsdc: 1,
+      });
+    }
+    this.bestPoolMaxDate = bestPoolMaxDate;
+  }
+
+  private async *refetchTokenPositions() {
+    const resp = await this.client.query({
+      query: `SELECT
+        account,
+        token_a,
+        token_b,
+        amount_a,
+        amount_b,
+        token_a_usdc_price,
+        token_b_usdc_price
+      FROM
+        solana_swaps_raw;`,
+      format: 'JSONEachRow',
+    });
+    for await (const rows of resp.stream<DbSwap>()) {
+      for (const row of rows) {
+        yield row.json();
+      }
+    }
+  }
+
+  private async loadTokenPosition(swap: DbSwap) {
+    const positionsA = this.getAccountTokenPositions(
+      swap.account,
+      swap.token_a
+    );
+    const positionsB = this.getAccountTokenPositions(
+      swap.account,
+      swap.token_b
+    );
+    positionsA.load(swap);
+    positionsB.load(swap);
   }
 
   // Convert SwappedTokenData to a ExtendedSwappedTokenData
@@ -58,177 +154,132 @@ export class PriceExtendStream {
   ): ExtendedSwappedTokenData {
     return {
       ...swappedToken,
-      usdcPrice: 0,
       balance: 0,
-      profitUsdc: 0,
-      costUsdc: 0,
-      tokenAcquisitionCostUsd: 0,
+      wins: 0,
+      loses: 0,
     };
   }
 
-  private async *restoreAccountHoldings() {
-    if (!this.client) return;
+  private getAccountTokenPositions(
+    account: string,
+    token: string
+  ): TokenPositions {
+    const key = `${token}:${account}`;
+    let positions = this.accountPositions.get(key);
+    if (!positions) {
+      positions = new TokenPositions(token);
+      this.accountPositions.set(key, positions);
+      return positions;
+    }
+    return positions;
+  }
 
-    // Get the latest account holdings from daily aggregated data
-    // FIXME: Why do we use maxMerge for acquisition_cost_usd, not anyLastMerge?
-    const result = await this.client.query({
-      query: `
-        SELECT 
-          token,
-          account,
-          anyLastMerge(balance) as balance,
-          maxMerge(acquisition_cost_usd) as acquisition_cost
-        FROM solana_account_trades_daily
-        GROUP BY token, account
-      `,
-      format: 'JSONEachRow',
-    });
+  private async processSwap(swap: SolanaSwap): Promise<ExtendedSolanaSwap> {
+    const [tokenA, tokenB] = sortTokenPair(swap.input, swap.output);
+    const tokenAIsOutputToken = swap.output.mintAcc === tokenA.mintAcc;
 
-    interface AccountHolding {
-      token: string;
-      account: string;
-      balance: number;
-      acquisition_cost: number;
+    if (
+      !this.bestPoolMaxDate ||
+      toStartOfPrevHour(swap.timestamp).getTime() !==
+        this.bestPoolMaxDate.getTime()
+    ) {
+      await this.reloadTokenPrices(toStartOfPrevHour(swap.timestamp));
     }
 
-    for await (const rows of result.stream<AccountHolding>()) {
-      for (const row of rows) {
-        yield row.json();
-      }
+    // FIXME: Unsafe conversion to number
+    const amountA = Number(tokenA.amount) / 10 ** tokenA.decimals;
+    const amountB = Number(tokenB.amount) / 10 ** tokenB.decimals;
+
+    let priceA = 0;
+    let priceB = 0;
+
+    const positionsA = this.getAccountTokenPositions(
+      swap.account,
+      tokenA.mintAcc
+    );
+    const positionsB = this.getAccountTokenPositions(
+      swap.account,
+      tokenB.mintAcc
+    );
+
+    let tokenAPriceData = this.tokenPrices.get(tokenA.mintAcc);
+    const tokenBPriceData = this.tokenPrices.get(tokenB.mintAcc);
+    const tokenBIsAllowedQuote = QUOTE_TOKENS.includes(tokenB.mintAcc);
+
+    if (
+      tokenBIsAllowedQuote &&
+      tokenBPriceData &&
+      (!tokenAPriceData?.isBestPricingPoolSelected ||
+        swap.poolAddress === tokenAPriceData.poolAddress) &&
+      tokenA.amount !== 0n &&
+      tokenB.amount !== 0n
+    ) {
+      // Update tokenAPriceData
+      tokenAPriceData = {
+        priceUsdc: getPrice(tokenA, tokenB) * tokenBPriceData.priceUsdc,
+        poolAddress: swap.poolAddress,
+        isBestPricingPoolSelected:
+          tokenAPriceData?.isBestPricingPoolSelected || false,
+      };
+      this.tokenPrices.set(tokenA.mintAcc, tokenAPriceData);
     }
+
+    priceA = tokenAPriceData?.priceUsdc || 0;
+    priceB = tokenBPriceData?.priceUsdc || 0;
+
+    const extTokenA: ExtendedSwappedTokenData =
+      this.initExtendedSwappedTokenData(tokenA);
+    const extTokenB: ExtendedSwappedTokenData =
+      this.initExtendedSwappedTokenData(tokenB);
+
+    extTokenA.priceData = tokenAPriceData;
+    extTokenB.priceData = tokenBPriceData;
+    extTokenA.amount = tokenAIsOutputToken ? tokenA.amount : -tokenA.amount;
+    extTokenB.amount = tokenAIsOutputToken ? -tokenB.amount : tokenB.amount;
+
+    if (tokenAIsOutputToken) {
+      // TOKEN A - ENTRY
+      positionsA.entry(amountA, priceA);
+      // TOKEN B - EXIT
+      const exitSummary = positionsB.exit(amountB, priceB);
+      extTokenB.positionExitSummary = exitSummary;
+    } else {
+      // TOKEN A - EXIT
+      const exitSummary = positionsA.exit(amountA, priceA);
+      extTokenA.positionExitSummary = exitSummary;
+      // TOKEN B - ENTRY
+      positionsB.entry(amountB, priceB);
+    }
+
+    extTokenA.balance = positionsA.totalBalance;
+    extTokenB.balance = positionsB.totalBalance;
+    extTokenA.wins = positionsA.wins;
+    extTokenB.wins = positionsB.wins;
+    extTokenA.loses = positionsA.loses;
+    extTokenB.loses = positionsB.loses;
+
+    return {
+      ...swap,
+      baseToken: extTokenA,
+      quoteToken: extTokenB,
+    };
   }
 
   async pipe(): Promise<TransformStream<SolanaSwap[], ExtendedSolanaSwap[]>> {
-    // tokenMintAcc => priceInUsdc map
-    const tokenPrices = new Map<string, number>();
-    // User token holdings map, ie.:
-    // `${tokenMintAcc}:${userAcc}` => { amount, weightedPrice }
-    const accountPairs = new Map<
-      string,
-      { amount: number; weightedPrice: number }
-    >();
-
     return new TransformStream({
       start: async () => {
-        for await (const row of this.restoreTokenPrices()) {
-          tokenPrices.set(row.token, row.price);
-        }
-
-        for await (const row of this.restoreAccountHoldings()) {
-          accountPairs.set(`${row.token}:${row.account}`, {
-            amount: row.balance,
-            weightedPrice: row.acquisition_cost,
-          });
+        this.logger.info('Restoring token positions...');
+        for await (const row of this.refetchTokenPositions()) {
+          this.loadTokenPosition(row);
         }
       },
-      transform: (swaps: SolanaSwap[], controller) =>
-        timeIt(this.logger, 'Extending swaps', () => {
-          const extendedSwaps: ExtendedSolanaSwap[] = swaps.map((swap) => {
-            const [tokenA, tokenB] = sortTokenPair(swap.input, swap.output);
-            const tokenAIsOutputToken = swap.output.mintAcc === tokenA.mintAcc;
-
-            // FIXME: Unsafe conversion to number
-            const amountA = Number(tokenA.amount) / 10 ** tokenA.decimals;
-            const amountB = Number(tokenB.amount) / 10 ** tokenB.decimals;
-
-            let priceA = 0;
-            let priceB = 0;
-
-            const holdingA = accountPairs.get(
-              `${tokenA.mintAcc}:${swap.account}`
-            ) || {
-              amount: 0,
-              weightedPrice: 0,
-            };
-            const holdingB = accountPairs.get(
-              `${tokenB.mintAcc}:${swap.account}`
-            ) || {
-              amount: 0,
-              weightedPrice: 0,
-            };
-
-            if (
-              // FIXME: Why we're not using USDS in QUOTE_TOKENS then? Perhaps ask EF.
-              tokenB.mintAcc === TOKENS.USDC ||
-              tokenB.mintAcc === TOKENS.USDT ||
-              tokenB.mintAcc === TOKENS.USDS
-            ) {
-              priceA = getPrice(tokenA, tokenB);
-              priceB = 1;
-
-              if (tokenA.mintAcc === TOKENS.SOL) {
-                tokenPrices.set(tokenA.mintAcc, priceA);
-              }
-            } else if (tokenB.mintAcc === TOKENS.SOL) {
-              const priceRelativeToSol = getPrice(tokenA, tokenB);
-              const latestSolUsdcPrice = tokenPrices.get(TOKENS.SOL) || 0;
-
-              priceA = latestSolUsdcPrice * priceRelativeToSol;
-              priceB = latestSolUsdcPrice;
-            }
-
-            const extTokenA: ExtendedSwappedTokenData =
-              this.initExtendedSwappedTokenData(tokenA);
-            const extTokenB: ExtendedSwappedTokenData =
-              this.initExtendedSwappedTokenData(tokenB);
-
-            extTokenA.usdcPrice = priceA;
-            extTokenB.usdcPrice = priceB;
-            extTokenA.amount = tokenAIsOutputToken
-              ? tokenA.amount
-              : -tokenA.amount;
-            extTokenB.amount = tokenAIsOutputToken
-              ? -tokenB.amount
-              : tokenB.amount;
-
-            if (tokenAIsOutputToken) {
-              extTokenA.balance = holdingA.amount + amountA;
-              extTokenA.profitUsdc = 0;
-              extTokenA.costUsdc = 0;
-              extTokenA.tokenAcquisitionCostUsd =
-                (holdingA.amount * holdingA.weightedPrice + amountA * priceA) /
-                extTokenA.balance;
-            } else {
-              extTokenA.balance = Math.max(holdingA.amount - amountA, 0);
-              extTokenA.profitUsdc =
-                Math.min(holdingA.amount, amountA) *
-                (priceA - holdingA.weightedPrice);
-              extTokenA.costUsdc =
-                Math.min(holdingA.amount, amountA) * holdingA.weightedPrice;
-              extTokenA.tokenAcquisitionCostUsd = holdingA.weightedPrice;
-            }
-            holdingA.weightedPrice = extTokenA.tokenAcquisitionCostUsd;
-            holdingA.amount = extTokenA.balance;
-            accountPairs.set(`${extTokenA.mintAcc}:${swap.account}`, holdingA);
-
-            if (!tokenAIsOutputToken) {
-              extTokenB.balance = holdingB.amount + amountB;
-              extTokenB.profitUsdc = 0;
-              extTokenB.costUsdc = 0;
-              extTokenB.tokenAcquisitionCostUsd =
-                (holdingB.amount * holdingB.weightedPrice + amountB * priceB) /
-                extTokenB.balance;
-            } else {
-              extTokenB.balance = Math.max(holdingB.amount - amountB, 0);
-              extTokenB.profitUsdc =
-                Math.min(holdingB.amount, amountB) *
-                (priceB - holdingB.weightedPrice);
-              extTokenB.costUsdc =
-                Math.min(holdingB.amount, amountB) * holdingB.weightedPrice;
-              extTokenB.tokenAcquisitionCostUsd = holdingB.weightedPrice;
-            }
-
-            holdingB.weightedPrice = extTokenB.tokenAcquisitionCostUsd;
-            holdingB.amount = extTokenB.balance;
-            accountPairs.set(`${extTokenB.mintAcc}:${swap.account}`, holdingB);
-
-            return {
-              ...swap,
-              baseToken: extTokenA,
-              quoteToken: extTokenB,
-            };
-          });
-
+      transform: async (swaps: SolanaSwap[], controller) =>
+        await timeIt(this.logger, 'Extending swaps', async () => {
+          const extendedSwaps: ExtendedSolanaSwap[] = [];
+          for (const swap of swaps) {
+            const extendedSwap = await this.processSwap(swap);
+            extendedSwaps.push(extendedSwap);
+          }
           controller.enqueue(extendedSwaps);
         }),
     });

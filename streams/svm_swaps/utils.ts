@@ -248,10 +248,15 @@ export const TOKENS = {
 };
 
 /**
+ * List of known USD stablecoins
+ */
+export const USD_STABLECOINS = [TOKENS.USDC, TOKENS.USDT, TOKENS.USDS];
+
+/**
  * List of tokens (mint addresses) we use as reference (quote) tokens
  * to calculate token prices
  */
-export const QUOTE_TOKENS = [TOKENS.USDC, TOKENS.USDT, TOKENS.SOL];
+export const QUOTE_TOKENS = [...USD_STABLECOINS, TOKENS.SOL];
 
 /**
  * Get the rank of a token in the QUOTE_TOKENS array.

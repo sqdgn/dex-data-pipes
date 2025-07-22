@@ -127,7 +127,7 @@ export type SolanaToken = SolanaTokenMintData & Partial<SolanaTokenMetadata>;
 
 export type SwappedTokenData = SolanaToken & {
   amount: bigint;
-  reserves?: bigint;
+  reserves: bigint;
 };
 
 export type SwapType =
@@ -147,14 +147,12 @@ export type SolanaSwapCore = {
   // Swap's output token data
   output: SwappedTokenData;
   // Address of the pool
-  poolAddress: string | null;
-  // TODO
+  poolAddress: string;
+  // TODO: `slippage` is nullable, because it's not implemented yet for Meteora.
+  // Once implemented the value should be required.
   slippage: number | null;
 };
 
-// TODO: the properties `slippage` and `input.reserves`/`output.reserves`
-// are nullable, because they were not implemented yet for Meteora.
-// Once implemented the values should be required.
 export type SolanaSwap = SolanaSwapCore & {
   id: string;
   // Transaction identification
