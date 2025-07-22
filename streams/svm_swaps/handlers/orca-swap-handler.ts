@@ -63,11 +63,11 @@ export function handleWhirlpool(
   const reserveIn = reserves[tokenIn.postMint];
   const reserveOut = reserves[tokenOut.postMint];
   assert(
-    reserveIn,
+    reserveIn !== undefined,
     `Orca: Missing input reserve. Tx hash: ${getTransactionHash(ins, block)}`
   );
   assert(
-    reserveOut,
+    reserveOut !== undefined,
     `Orca: Missing output reserve. Tx hash: ${getTransactionHash(ins, block)}`
   );
 
