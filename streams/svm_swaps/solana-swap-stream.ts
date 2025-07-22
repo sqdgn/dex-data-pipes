@@ -316,70 +316,72 @@ export class SolanaSwapsStream extends PortalAbstractStream<SolanaSwap, Args> {
           transactionTokenBalances: true, // all token balance records of executed transaction
         },
         // Swap instructions for various Solana AMMs
-        ...types.map((type) => {
-          switch (type) {
-            case 'orca_whirlpool':
-              return {
-                programId: [whirlpool.programId],
-                d8: [whirlpool.instructions.swap.d8],
-                isCommitted: true,
-                innerInstructions: true,
-                transaction: true,
-                transactionTokenBalances: true,
-                logs: true,
-              };
-            case 'meteora_damm':
-              return {
-                programId: [meteoraDamm.programId],
-                d8: [meteoraDamm.instructions.swap.d8],
-                isCommitted: true,
-                innerInstructions: true,
-                transaction: true,
-                transactionTokenBalances: true,
-                logs: true,
-              };
-            case 'meteora_dlmm':
-              return {
-                programId: [meteoraDlmm.programId],
-                d8: [
-                  meteoraDlmm.instructions.swap.d8,
-                  meteoraDlmm.instructions.swapExactOut.d8,
-                ],
-                isCommitted: true,
-                innerInstructions: true,
-                transaction: true,
-                transactionTokenBalances: true,
-                logs: true,
-              };
-            case 'raydium_clmm':
-              return {
-                programId: [raydiumClmm.programId],
-                d8: [
-                  raydiumClmm.instructions.swap.d8,
-                  raydiumClmm.instructions.swapV2.d8,
-                  raydiumClmm.instructions.swapRouterBaseIn.d8,
-                ],
-                isCommitted: true,
-                innerInstructions: true,
-                transaction: true,
-                transactionTokenBalances: true,
-                logs: true,
-              };
-            case 'raydium_amm':
-              return {
-                programId: [raydiumAmm.programId],
-                d1: [
-                  raydiumAmm.instructions.swapBaseInput.d8,
-                  raydiumAmm.instructions.swapBaseOutput.d8,
-                ],
-                isCommitted: true,
-                innerInstructions: true,
-                transaction: true,
-                transactionTokenBalances: true,
-                logs: true,
-              };
-          }
-        }),
+        ...(args.onlyTokens
+          ? []
+          : types.map((type) => {
+              switch (type) {
+                case 'orca_whirlpool':
+                  return {
+                    programId: [whirlpool.programId],
+                    d8: [whirlpool.instructions.swap.d8],
+                    isCommitted: true,
+                    innerInstructions: true,
+                    transaction: true,
+                    transactionTokenBalances: true,
+                    logs: true,
+                  };
+                case 'meteora_damm':
+                  return {
+                    programId: [meteoraDamm.programId],
+                    d8: [meteoraDamm.instructions.swap.d8],
+                    isCommitted: true,
+                    innerInstructions: true,
+                    transaction: true,
+                    transactionTokenBalances: true,
+                    logs: true,
+                  };
+                case 'meteora_dlmm':
+                  return {
+                    programId: [meteoraDlmm.programId],
+                    d8: [
+                      meteoraDlmm.instructions.swap.d8,
+                      meteoraDlmm.instructions.swapExactOut.d8,
+                    ],
+                    isCommitted: true,
+                    innerInstructions: true,
+                    transaction: true,
+                    transactionTokenBalances: true,
+                    logs: true,
+                  };
+                case 'raydium_clmm':
+                  return {
+                    programId: [raydiumClmm.programId],
+                    d8: [
+                      raydiumClmm.instructions.swap.d8,
+                      raydiumClmm.instructions.swapV2.d8,
+                      raydiumClmm.instructions.swapRouterBaseIn.d8,
+                    ],
+                    isCommitted: true,
+                    innerInstructions: true,
+                    transaction: true,
+                    transactionTokenBalances: true,
+                    logs: true,
+                  };
+                case 'raydium_amm':
+                  return {
+                    programId: [raydiumAmm.programId],
+                    d1: [
+                      raydiumAmm.instructions.swapBaseInput.d8,
+                      raydiumAmm.instructions.swapBaseOutput.d8,
+                    ],
+                    isCommitted: true,
+                    innerInstructions: true,
+                    transaction: true,
+                    transactionTokenBalances: true,
+                    logs: true,
+                  };
+              }
+            })),
       ],
     };
   }
