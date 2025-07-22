@@ -7,6 +7,7 @@ import { TokenMetadataStorage } from './token_metadata_storage';
 import { PortalAbstractStream } from '@sqd-pipes/core';
 import { EventRecord } from '@subsquid/evm-abi';
 import { findPoolMetadata, findSwap } from './protocol_mappings';
+import { inspect } from 'util';
 
 type Args = {
   network: Network;
@@ -202,7 +203,11 @@ export class EvmSwapStream extends PortalAbstractStream<EvmSwap, Args> {
             return;
           }
 
-          await this.tokenOnchainHelper.enrichWithTokenData(events);
+          try {
+            await this.tokenOnchainHelper.enrichWithTokenData(events);
+          } catch (err) {
+            this.logger.error(`Failed to enrich token data: ${inspect(err)}`);
+          }
 
           // calc human amounts
           for (const s of events) {

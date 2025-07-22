@@ -75,6 +75,10 @@ const referenceTokens: Record<Network, ReferenceToken[]> = {
       tokenAddress: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2'.toLowerCase(), // WETH
       poolAddress: USDC_POOL_ADDRESS.ethereum,
     },
+    {
+      tokenAddress: '0x8d0D000Ee44948FC98c9B98A4FA4921476f08B0d'.toLowerCase(), // USD1
+      poolAddress: '0x1e1dfff79d95725aaafd6b47af4fbc28d859ce28'.toLowerCase(),
+    },
   ],
 };
 

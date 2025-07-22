@@ -32,6 +32,7 @@ export class TokenMetadataStorage {
   db: DatabaseSync;
   statements: Record<string, StatementSync>;
   tokenMetadataMap: Map<string, TokenMetadata>;
+  tokenMetadataLoadErrorCount = new Map<string, number>(); // how many errors during token metadata loading
 
   constructor(
     private readonly dbPath: string,
@@ -119,93 +120,155 @@ export class TokenMetadataStorage {
 
     let uniqueTokens = Array.from(tokenAddresses);
 
-    try {
-      while (uniqueTokens.length) {
-        // break them to batches TOKEN_BATCH_LEN each
-        const endIndex = Math.min(uniqueTokens.length, TOKEN_BATCH_LEN);
-        const currentTokenBatch = uniqueTokens.slice(0, endIndex);
-        uniqueTokens = uniqueTokens.slice(endIndex, uniqueTokens.length);
+    while (uniqueTokens.length) {
+      // break them to batches TOKEN_BATCH_LEN each
+      const endIndex = Math.min(uniqueTokens.length, TOKEN_BATCH_LEN);
+      const currentTokenBatch = uniqueTokens.slice(0, endIndex);
+      uniqueTokens = uniqueTokens.slice(endIndex, uniqueTokens.length);
 
-        const calls = currentTokenBatch.flatMap((tokenAddress) => [
-          {
-            target: tokenAddress,
-            // decimals() function selector: 0x313ce567
-            callData: '0x313ce567',
-          },
-          {
-            target: tokenAddress,
-            // symbol() function selector: 0x95d89b41
-            callData: '0x95d89b41',
-          },
-        ]);
+      const calls = currentTokenBatch.flatMap((tokenAddress) => [
+        {
+          target: tokenAddress,
+          // decimals() function selector: 0x313ce567
+          callData: '0x313ce567',
+        },
+        {
+          target: tokenAddress,
+          // symbol() function selector: 0x95d89b41
+          callData: '0x95d89b41',
+        },
+      ]);
 
-        let newLoadedTokens: TokenMetadata[] = [];
-        let multicallResults: string[];
+      let multicallResults: string[] = [];
+
+      let dataSuccess = false;
+      let callSuccess = false;
+      for (let retries = 1; retries <= 3 && !dataSuccess; retries++) {
         try {
           multicallResults = await this.executeMulticall(calls);
-
-          for (let i = 0; i < currentTokenBatch.length; i++) {
-            const tokenAddress = currentTokenBatch[i];
-            const decimalsIndex = i * 2;
-            const symbolIndex = i * 2 + 1;
-
-            try {
-              // Parse decimals (uint8)
-              const decimalsResult = multicallResults[decimalsIndex];
-              const decimals = decimalsResult ? parseInt(decimalsResult.slice(-2), 16) : 18;
-
-              // Parse symbol (string)
-              const symbolResult = multicallResults[symbolIndex];
-              const symbol = symbolResult ? this.parseStringFromHex(symbolResult) : '';
-
-              const newToken = {
-                address: tokenAddress,
-                network: this.network,
-                decimals,
-                symbol,
-              };
-              newLoadedTokens.push(newToken);
-              this.tokenMetadataMap.set(tokenAddress, newToken);
-            } catch (decodeError) {
-              this.tokenMetadataMap.set(tokenAddress, {
-                address: tokenAddress,
-                network: this.network,
-                decimals: 18,
-                symbol: '',
-              });
-            }
-          }
+          callSuccess = true;
         } catch (err) {
           this.logger.error(
-            `Failed to execute multicall: ${(err as any).shortMessage || (err as any).reason}`,
+            `multicall call error: ${(err as any).shortMessage || (err as any).reason}`,
           );
-          newLoadedTokens = await this.getTokensMetadataRpc(currentTokenBatch);
-          this.logger.info(`getTokensMetadataRpc: ${newLoadedTokens.length} records returned`);
+          continue;
         }
-        this.saveTokenMetadataIntoDb(newLoadedTokens);
+        if (multicallResults.includes('0x')) {
+          this.logger.warn(`multicall call returned empty data, retry attempt ${retries}...`);
+          continue;
+        }
+        dataSuccess = true;
+      }
+      const wrongDataTokenAddresses: string[] = [];
+
+      if (callSuccess) {
+        if (!dataSuccess) {
+          const retryTokens = multicallResults
+            .map((res, ind) => ({ ind, token: currentTokenBatch[ind / 2], res }))
+            .filter((item) => item.ind % 2 === 0 && item.res === '0x')
+            .map((item) => item.token);
+          this.logger.warn(
+            `still empty results in multicall call. Will retry via RPC for tokens: ${retryTokens.join(', ')}`,
+          );
+        }
+
+        for (let i = 0; i < currentTokenBatch.length; i++) {
+          const tokenAddress = currentTokenBatch[i];
+          const decimalsIndex = i * 2;
+          const symbolIndex = i * 2 + 1;
+
+          try {
+            const decimalsResult = multicallResults[decimalsIndex];
+            const symbolResult = multicallResults[symbolIndex];
+
+            if (decimalsResult === '0x' && symbolResult === '0x') {
+              this.logger.warn(
+                `decimals/symbol for ${tokenAddress} is empty, will try later via RPC`,
+              );
+              wrongDataTokenAddresses.push(tokenAddress);
+              continue;
+            }
+
+            const decimals =
+              decimalsResult && decimalsResult !== '0x'
+                ? parseInt(decimalsResult.slice(-2), 16)
+                : 18;
+            const symbol = symbolResult ? this.parseStringFromHex(symbolResult) : '';
+
+            const newToken = {
+              address: tokenAddress,
+              network: this.network,
+              decimals,
+              symbol,
+            };
+            this.saveTokenMetadataIntoDb([newToken]);
+          } catch (err) {
+            this.logger.warn('multicall decode error, will retry: ', inspect(err));
+            wrongDataTokenAddresses.push(tokenAddress);
+          }
+        }
+      } else {
+        wrongDataTokenAddresses.push(...currentTokenBatch.map((t) => t));
       }
 
-      // Enrich events with token metadata
-      events.forEach((event) => {
-        if (event.tokenA.decimals === undefined) {
-          const tokenAData =
-            this.tokenMetadataMap.get(event.tokenA.address) ||
-            this.defaultToken(event.tokenA.address);
-          event.tokenA.decimals = tokenAData.decimals;
-          event.tokenA.symbol = tokenAData.symbol;
-        }
+      if (wrongDataTokenAddresses.length) {
+        this.logger.warn(
+          `loading decimals/symbol one by one for: ${wrongDataTokenAddresses.join(' ')}`,
+        );
+        const tokensData = await this.getTokensMetadataRpc(wrongDataTokenAddresses);
+        this.logger.warn(
+          `one by one load completed, ${tokensData.filter((td) => td === undefined).length}/${tokensData.length} not loaded`,
+        );
+        tokensData.forEach((td, index) => {
+          if (td) {
+            this.saveTokenMetadataIntoDb([td]);
+          } else {
+            const tokenAddress = wrongDataTokenAddresses[index];
+            const prevErrors = this.tokenMetadataLoadErrorCount.get(tokenAddress) ?? 0;
+            if (prevErrors > 10) {
+              // errors threshold exceeded – save as incomplete data token
+              this.saveTokenMetadataIntoDb([
+                {
+                  address: tokenAddress,
+                  decimals: 18,
+                  network: this.network,
+                  symbol: '',
+                },
+              ]);
+            } else {
+              this.tokenMetadataLoadErrorCount.set(tokenAddress, prevErrors + 1);
+            }
+          }
+        });
+      }
+    }
 
-        if (event.tokenB.decimals === undefined) {
-          const tokenBData =
-            this.tokenMetadataMap.get(event.tokenB.address) ||
-            this.defaultToken(event.tokenB.address);
+    // Enrich events with token metadata
+    events.forEach((event) => {
+      if (event.tokenA.decimals === undefined) {
+        const tokenData = this.getTokenMetadata(event.tokenA.address);
+        event.tokenA.decimals = tokenData ? tokenData.decimals : Number.NaN;
+        event.tokenA.symbol = tokenData ? tokenData.symbol : '';
+      }
 
-          event.tokenB.decimals = tokenBData.decimals;
-          event.tokenB.symbol = tokenBData.symbol;
-        }
-      });
-    } catch (err) {
-      this.logger.error(`Failed to enrich token data: ${inspect(err)}`);
+      if (event.tokenB.decimals === undefined) {
+        const tokenData = this.getTokenMetadata(event.tokenB.address);
+        event.tokenB.decimals = tokenData ? tokenData.decimals : Number.NaN;
+        event.tokenB.symbol = tokenData ? tokenData.symbol : '';
+      }
+    });
+
+    const nanEvents = events.filter(
+      (e) =>
+        Number.isNaN(e.tokenA.decimals) ||
+        e.tokenA.decimals === undefined ||
+        e.tokenA.decimals === null ||
+        Number.isNaN(e.tokenB.decimals) ||
+        e.tokenB.decimals === undefined ||
+        e.tokenB.decimals === null,
+    );
+    if (nanEvents.length) {
+      console.log('nanEvents:', nanEvents.length);
     }
   }
 
@@ -226,32 +289,49 @@ export class TokenMetadataStorage {
     return returnData.map((data: any) => ethers.hexlify(data));
   }
 
-  private async getTokensMetadataRpc(tokenAddresses: string[]): Promise<TokenMetadata[]> {
+  private async getTokensMetadataRpc(
+    tokenAddresses: string[],
+  ): Promise<(TokenMetadata | undefined)[]> {
     const res = tokenAddresses.map(async (token) => {
       try {
         const tokenContract = new ethers.Contract(token, ERC20_ABI, this.provider);
+
+        const [decimalsPromise, symbolPromise] = await Promise.allSettled([
+          tokenContract.decimals(),
+          tokenContract.symbol(),
+        ]);
+
+        const isMissingField = (rej: PromiseRejectedResult) =>
+          rej.reason.code === 'BAD_DATA' ||
+          (rej.reason.code === 'CALL_EXCEPTION' &&
+            rej.reason.shortMessage === 'missing revert data');
+
+        if (
+          decimalsPromise.status === 'rejected' &&
+          !isMissingField(decimalsPromise) &&
+          symbolPromise.status === 'rejected' &&
+          !isMissingField(symbolPromise)
+        ) {
+          // in case of two failures indicate some error (probably network), so return undefined for
+          // future retries.
+          this.logger.error(
+            `getTokensMetadataRpc token ${token} unknown error: decimals: ${inspect(decimalsPromise.reason)}, symbol: ${inspect(symbolPromise.reason)}`,
+          );
+          return undefined;
+        }
         return {
           address: token,
-          decimals: parseInt(await tokenContract.decimals()),
-          symbol: await tokenContract.symbol(),
+          decimals: decimalsPromise.status === 'fulfilled' ? parseInt(decimalsPromise.value) : 18,
+          symbol: symbolPromise.status === 'fulfilled' ? symbolPromise.value : '',
           network: this.network,
         } satisfies TokenMetadata;
       } catch (err) {
-        this.logger.error(`getTokensMetadataRpc: ${inspect(err)}`);
-        return this.defaultToken(token);
+        this.logger.error(`getTokensMetadataRpc unknown error: ${inspect(err)}`);
+        return undefined;
       }
     });
 
     return Promise.all(res);
-  }
-
-  private defaultToken(address: string) {
-    return {
-      address,
-      decimals: 18,
-      symbol: '',
-      network: this.network,
-    } satisfies TokenMetadata;
   }
 
   private parseStringFromHex(hex: string): string {
