@@ -18,7 +18,12 @@ logger.info(`Local database: ${config.dbPath}`);
 
 async function main() {
   const clickhouse = await createClickhouseClient();
-  await ensureTables(clickhouse, __dirname);
+  await ensureTables(
+    clickhouse,
+    __dirname,
+    undefined,
+    process.env.CLICKHOUSE_DB || 'default'
+  );
 
   const ds = new SolanaSwapsStream({
     portal: config.portalUrl,

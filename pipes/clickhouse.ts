@@ -16,22 +16,29 @@ export async function loadSqlFiles(directoryOrFile: string): Promise<string[]> {
       .map((file) => path.join(directoryOrFile, file));
   }
 
-  const tables = await Promise.all(sqlFiles.map((file) => fs.readFile(file, 'utf-8')));
+  const tables = await Promise.all(
+    sqlFiles.map((file) => fs.readFile(file, 'utf-8'))
+  );
 
-  return tables.flatMap((table) => table.split(';').filter((t) => t.trim().length > 0));
+  return tables.flatMap((table) =>
+    table.split(';').filter((t) => t.trim().length > 0)
+  );
 }
 
 export async function ensureTables(
   clickhouse: ClickHouseClient,
   dir: string,
   networkReplace: string = '',
+  dbNameReplace: string = ''
 ) {
   const tables = await loadSqlFiles(dir);
 
   for (const table of tables) {
     let query = '';
     try {
-      query = table.replaceAll('${network}', networkReplace);
+      query = table
+        .replaceAll('${db_name}', dbNameReplace)
+        .replaceAll('${network}', networkReplace);
       await clickhouse.command({ query });
     } catch (e: any) {
       if (e.type === 'SYNTAX_ERROR' && e.message?.includes('Empty query')) {
@@ -52,7 +59,7 @@ export async function ensureTables(
 export async function createClickhouseClient() {
   assert(
     process.env.CLICKHOUSE_DB,
-    'CLICKHOUSE_DB env param must be specified – it must be the same as service name',
+    'CLICKHOUSE_DB env param must be specified – it must be the same as service name'
   );
   const options = {
     url: process.env.CLICKHOUSE_URL || 'http://localhost:8123',

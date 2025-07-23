@@ -178,7 +178,7 @@ AS
       token_b IN allowed_quote_tokens()
     GROUP BY timestamp, token_a, token_b, dex, pool_address;
 
-CREATE VIEW IF NOT EXISTS tokens_with_best_quote_pools
+CREATE VIEW IF NOT EXISTS ${db_name}.tokens_with_best_quote_pools
 AS
   WITH
     pool_stats AS (
@@ -188,7 +188,7 @@ AS
         dex,
         pool_address,
         sum(volume_1h) AS total_volume
-      FROM quote_pool_stats_1h
+      FROM ${db_name}.quote_pool_stats_1h
       WHERE
         (timestamp BETWEEN {min_timestamp:DateTime} AND {max_timestamp:DateTime}) 
       GROUP BY token_a, token_b, dex, pool_address
@@ -202,7 +202,7 @@ AS
   FROM pool_stats ps
   GROUP BY token_a;
 
-CREATE VIEW IF NOT EXISTS trader_token_stats AS
+CREATE VIEW IF NOT EXISTS ${db_name}.trader_token_stats AS
 		SELECT
 			s1.account                         AS wallet,
 			s1.token_a                         AS token,
@@ -214,13 +214,13 @@ CREATE VIEW IF NOT EXISTS trader_token_stats AS
       max(s1.token_a_wins)               AS tx_wins,
       max(s1.token_a_loses)              AS tx_loses,
 			sum(s1.token_a_profit_usdc)        AS total_profit_usdc
-		FROM solana_swaps_raw s1
+		FROM ${db_name}.solana_swaps_raw s1
 		WHERE
 			(s1.timestamp BETWEEN {start_date:DateTime} AND {end_date:DateTime}) AND
 			s1.token_b IN {allowed_quote_tokens:Array(String)}
 		GROUP BY wallet, token;
 
-CREATE VIEW IF NOT EXISTS top_traders
+CREATE VIEW IF NOT EXISTS ${db_name}.top_traders
 AS
   WITH
     token_wins_loses AS (
@@ -230,7 +230,7 @@ AS
         sum(tts.tx_loses)                  AS tx_loses,
         countIf(tts.total_profit_usdc > 0) AS token_wins,
         countIf(tts.total_profit_usdc < 0) AS token_loses
-      FROM trader_token_stats(
+      FROM ${db_name}.trader_token_stats(
         start_date={start_date:DateTime},
         end_date={end_date:DateTime},
         allowed_quote_tokens={allowed_quote_tokens:Array(String)}
@@ -255,7 +255,7 @@ AS
     (token_wins / (token_wins + token_loses)) AS token_win_ratio,
     (total_profit_usdc / total_cost_usdc) * 100 AS pnl_percent
   FROM
-    solana_swaps_raw s
+    ${db_name}.solana_swaps_raw s
   JOIN
     token_wins_loses AS twl ON twl.wallet = wallet
   WHERE
@@ -264,16 +264,16 @@ AS
   GROUP BY wallet
   ORDER BY `pnl_percent` DESC;
 
-CREATE VIEW IF NOT EXISTS tokens_with_last_prices AS
+CREATE VIEW IF NOT EXISTS ${db_name}.tokens_with_last_prices AS
   WITH tuple(s.timestamp, s.transaction_index, s.instruction_address) AS swap_order
   SELECT
     s.token_a as token,
     argMax(s.pool_address, swap_order) AS pool_address,
     argMax(best_pool.pool_address, swap_order) AS best_pool_address,
     argMax(s.token_a_usdc_price, swap_order) as price
-  FROM solana_swaps_raw s
+  FROM ${db_name}.solana_swaps_raw s
   LEFT JOIN
-    tokens_with_best_quote_pools(
+    ${db_name}.tokens_with_best_quote_pools(
       min_timestamp={min_timestamp:DateTime},
       max_timestamp={max_timestamp:DateTime}
     ) AS best_pool
