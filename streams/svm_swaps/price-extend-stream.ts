@@ -121,7 +121,7 @@ export class PriceExtendStream {
     this.bestPoolMaxDate = bestPoolMaxDate;
   }
 
-  private async refetchPositions(account: string) {
+  private async refetchPositions(accounts: string[]) {
     const resp = await this.client.query({
       query: `SELECT
         account,
@@ -135,9 +135,9 @@ export class PriceExtendStream {
         account_token_positions
       WHERE
         sign > 0
-        AND account={account:String}
+        AND account IN {accounts:Array(String)}
       ORDER BY (block_number, transaction_index, instruction_address) ASC`,
-      query_params: account ? { account } : undefined,
+      query_params: { accounts },
       format: 'JSON',
     });
     const { data } = await resp.json<DbSwap>();
@@ -196,7 +196,7 @@ export class PriceExtendStream {
       // Account positions not found in cache.
       // Try to reload from DB first...
       let dbHit = false;
-      const dbSwaps = await this.refetchPositions(account);
+      const dbSwaps = await this.refetchPositions([account]);
       for (const swap of dbSwaps) {
         dbHit = true;
         this.loadTokenPosition(swap);
@@ -326,6 +326,34 @@ export class PriceExtendStream {
     this.cacheHitRatio = { cacheHit: 0, dbHit: 0, miss: 0 };
   }
 
+  private async preloadMissingAccountPositions(swaps: SolanaSwap[]) {
+    const filteredSwaps = swaps.filter(
+      // For now we don't track positions for swaps where neither of the toknes can be found in `QUOTE_TOKENS`
+      (s) =>
+        QUOTE_TOKENS.includes(s.input.mintAcc) ||
+        QUOTE_TOKENS.includes(s.output.mintAcc)
+    );
+    const missingAccounts = _.uniq(filteredSwaps.map((s) => s.account)).filter(
+      (a) => !this.accountPositions.has(a)
+    );
+    const dbData = await this.refetchPositions(missingAccounts);
+    const foundAccounts = _.uniq(dbData.map((s) => s.account)).length;
+    // First we populate this.accountPositions with empty maps for
+    // each of the missing accounts, because we still want to mark all of
+    // them as "loaded into cache", even if they didn't make any swaps yet.
+    // (so that they are not redundantly re-fetched later)
+    for (const account of missingAccounts) {
+      this.accountPositions.set(account, new Map());
+    }
+    // Now we populate the cache with the actual data
+    for (const dbSwap of dbData) {
+      this.loadTokenPosition(dbSwap);
+    }
+    this.logger.debug(
+      `Preloaded positions for ${missingAccounts.length} missing accounts. ${foundAccounts} were found in db.`
+    );
+  }
+
   async pipe(): Promise<TransformStream<SolanaSwap[], ExtendedSolanaSwap[]>> {
     return new TransformStream({
       start: async () => {
@@ -334,6 +362,9 @@ export class PriceExtendStream {
       transform: async (swaps: SolanaSwap[], controller) =>
         await timeIt(this.logger, 'Extending swaps', async () => {
           const extendedSwaps: ExtendedSolanaSwap[] = [];
+          await timeIt(this.logger, 'Preloading positions', async () => {
+            await this.preloadMissingAccountPositions(swaps);
+          });
           for (const swap of swaps) {
             const extendedSwap = await this.processSwap(swap);
             extendedSwaps.push(extendedSwap);

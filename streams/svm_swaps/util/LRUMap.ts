@@ -49,6 +49,10 @@ export class LRUMap<K, V> {
     return v;
   }
 
+  has(k: K) {
+    return this.map.has(k);
+  }
+
   pop(k: K): V | null {
     const existing = this.map.get(k);
     if (existing) {
