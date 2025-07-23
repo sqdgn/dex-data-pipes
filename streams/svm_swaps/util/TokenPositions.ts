@@ -31,14 +31,14 @@ export class TokenPositions {
   private _wins = 0;
   private _loses = 0;
 
-  constructor(private token: string) {}
+  constructor() {}
 
   private closeTo(x: number, y: number) {
     return Math.abs(x - y) < this.epsilon;
   }
 
-  public async load(swap: DbSwap) {
-    const thisToken = swap.token_a === this.token ? 'a' : 'b';
+  public async load(swap: DbSwap, token: string) {
+    const thisToken = swap.token_a === token ? 'a' : 'b';
     if (swap[`amount_${thisToken}`] > 0) {
       this.entry(
         swap[`amount_${thisToken}`],

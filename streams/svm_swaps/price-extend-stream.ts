@@ -11,6 +11,7 @@ import { createLogger } from '../../pipes/utils';
 import _ from 'lodash';
 import { DbSwap, ExitSummary, TokenPositions } from './util/TokenPositions';
 import { Logger } from 'pino';
+import { LRUMap } from './util/LRUMap';
 
 export type TokenPriceData = {
   poolAddress: string;
@@ -45,11 +46,18 @@ function toStartOfPrevHour(date: Date) {
   return startOfPrevHour;
 }
 
+// We limit LRU cache for account positions to 100_000
+// most recently used accounts.
+const ACCOUNT_POSITIONS_MAP_CAPACITY = 100_000;
+
 export class PriceExtendStream {
   private logger: Logger;
-  // User token holdings map, ie.:
-  // `${tokenMintAcc}:${userAcc}` => Positions FIFO queue
-  private accountPositions = new Map<string, TokenPositions>();
+  // Double map: userAcc -> tokenMintAcc -> TokenPositions (FIFO queue)
+  private accountPositions = new LRUMap<string, Map<string, TokenPositions>>(
+    ACCOUNT_POSITIONS_MAP_CAPACITY
+  );
+  // Cache hit ratio for account positions LRUMap cache
+  private cacheHitRatio = { cacheHit: 0, dbHit: 0, miss: 0 };
   // tokenMintAcc => TokenPriceData map
   private tokenPrices = new Map<string, TokenPriceData>();
   // Ending date currently used to select best pricing pools for each token
@@ -113,7 +121,7 @@ export class PriceExtendStream {
     this.bestPoolMaxDate = bestPoolMaxDate;
   }
 
-  private async *refetchTokenPositions() {
+  private async refetchPositions(account: string) {
     const resp = await this.client.query({
       query: `SELECT
         account,
@@ -124,27 +132,28 @@ export class PriceExtendStream {
         token_a_usdc_price,
         token_b_usdc_price
       FROM
-        solana_swaps_raw;`,
-      format: 'JSONEachRow',
+        account_token_positions
+      WHERE
+        sign > 0
+        AND account={account:String}`,
+      query_params: account ? { account } : undefined,
+      format: 'JSON',
     });
-    for await (const rows of resp.stream<DbSwap>()) {
-      for (const row of rows) {
-        yield row.json();
-      }
-    }
+    const { data } = await resp.json<DbSwap>();
+    return data;
   }
 
-  private async loadTokenPosition(swap: DbSwap) {
-    const positionsA = this.getAccountTokenPositions(
+  private loadTokenPosition(swap: DbSwap) {
+    const positionsA = this.getOrCreateTokenPositions(
       swap.account,
       swap.token_a
     );
-    const positionsB = this.getAccountTokenPositions(
+    const positionsB = this.getOrCreateTokenPositions(
       swap.account,
       swap.token_b
     );
-    positionsA.load(swap);
-    positionsB.load(swap);
+    positionsA.load(swap, swap.token_a);
+    positionsB.load(swap, swap.token_b);
   }
 
   // Convert SwappedTokenData to a ExtendedSwappedTokenData
@@ -160,18 +169,51 @@ export class PriceExtendStream {
     };
   }
 
-  private getAccountTokenPositions(
+  private getOrCreateTokenPositions(
     account: string,
     token: string
   ): TokenPositions {
-    const key = `${token}:${account}`;
-    let positions = this.accountPositions.get(key);
-    if (!positions) {
-      positions = new TokenPositions(token);
-      this.accountPositions.set(key, positions);
-      return positions;
+    let accountPositions = this.accountPositions.get(account);
+    if (!accountPositions) {
+      accountPositions = new Map();
+      this.accountPositions.set(account, accountPositions);
     }
-    return positions;
+    let tokenPositions = accountPositions.get(token);
+    if (!tokenPositions) {
+      tokenPositions = new TokenPositions();
+      accountPositions.set(token, tokenPositions);
+    }
+    return tokenPositions;
+  }
+
+  private async getOrLoadTokenPositions(
+    account: string,
+    token: string
+  ): Promise<TokenPositions> {
+    const accountPositions = this.accountPositions.get(account);
+    if (!accountPositions) {
+      // Account positions not found in cache.
+      // Try to reload from DB first...
+      let dbHit = false;
+      const dbSwaps = await this.refetchPositions(account);
+      for (const swap of dbSwaps) {
+        dbHit = true;
+        this.loadTokenPosition(swap);
+      }
+      if (dbHit) {
+        ++this.cacheHitRatio.dbHit;
+      } else {
+        ++this.cacheHitRatio.miss;
+      }
+      // ...then use getOrCreate for this specific token
+      const tokenPositions = this.getOrCreateTokenPositions(account, token);
+      return tokenPositions;
+    } else {
+      ++this.cacheHitRatio.cacheHit;
+    }
+    // If account positions are already present in cache,
+    // we can safely use getOrCreate
+    return this.getOrCreateTokenPositions(account, token);
   }
 
   private async processSwap(swap: SolanaSwap): Promise<ExtendedSolanaSwap> {
@@ -192,15 +234,6 @@ export class PriceExtendStream {
 
     let priceA = 0;
     let priceB = 0;
-
-    const positionsA = this.getAccountTokenPositions(
-      swap.account,
-      tokenA.mintAcc
-    );
-    const positionsB = this.getAccountTokenPositions(
-      swap.account,
-      tokenB.mintAcc
-    );
 
     let tokenAPriceData = this.tokenPrices.get(tokenA.mintAcc);
     const tokenBPriceData = this.tokenPrices.get(tokenB.mintAcc);
@@ -237,32 +270,33 @@ export class PriceExtendStream {
     extTokenA.amount = tokenAIsOutputToken ? tokenA.amount : -tokenA.amount;
     extTokenB.amount = tokenAIsOutputToken ? -tokenB.amount : tokenB.amount;
 
-    if (tokenAIsOutputToken) {
-      // For now we only process positions against allowed quote tokens
-      if (tokenBIsAllowedQuote) {
+    // For now we only process positions against allowed quote tokens
+    if (tokenBIsAllowedQuote) {
+      const positions = {
+        a: await this.getOrLoadTokenPositions(swap.account, tokenA.mintAcc),
+        b: await this.getOrLoadTokenPositions(swap.account, tokenB.mintAcc),
+      };
+
+      if (tokenAIsOutputToken) {
         // TOKEN A - ENTRY
-        positionsA.entry(amountA, priceA);
+        positions.a.entry(amountA, priceA);
         // TOKEN B - EXIT
-        const exitSummary = positionsB.exit(amountB, priceB);
+        const exitSummary = positions.b.exit(amountB, priceB);
         extTokenB.positionExitSummary = exitSummary;
-      }
-    } else {
-      // For now we only process positions against allowed quote tokens
-      if (tokenBIsAllowedQuote) {
+      } else {
         // TOKEN A - EXIT
-        const exitSummary = positionsA.exit(amountA, priceA);
+        const exitSummary = positions.a.exit(amountA, priceA);
         extTokenA.positionExitSummary = exitSummary;
         // TOKEN B - ENTRY
-        positionsB.entry(amountB, priceB);
+        positions.b.entry(amountB, priceB);
       }
+      extTokenA.balance = positions.a.totalBalance;
+      extTokenB.balance = positions.b.totalBalance;
+      extTokenA.wins = positions.a.wins;
+      extTokenB.wins = positions.b.wins;
+      extTokenA.loses = positions.a.loses;
+      extTokenB.loses = positions.b.loses;
     }
-
-    extTokenA.balance = positionsA.totalBalance;
-    extTokenB.balance = positionsB.totalBalance;
-    extTokenA.wins = positionsA.wins;
-    extTokenB.wins = positionsB.wins;
-    extTokenA.loses = positionsA.loses;
-    extTokenB.loses = positionsB.loses;
 
     return {
       ...swap,
@@ -271,13 +305,30 @@ export class PriceExtendStream {
     };
   }
 
+  private logAndResetCacheStats() {
+    const { cacheHit, dbHit, miss } = this.cacheHitRatio;
+    const size = this.accountPositions.size;
+    this.logger.debug(
+      `Cache stats: ` +
+        JSON.stringify(
+          {
+            size,
+            ...this.cacheHitRatio,
+            cacheHitRatio: cacheHit / (cacheHit + dbHit + miss),
+            cacheToDbHitRatio: cacheHit / (cacheHit + dbHit),
+          },
+          null,
+          4
+        )
+    );
+    // Reset stats every iteration
+    this.cacheHitRatio = { cacheHit: 0, dbHit: 0, miss: 0 };
+  }
+
   async pipe(): Promise<TransformStream<SolanaSwap[], ExtendedSolanaSwap[]>> {
     return new TransformStream({
       start: async () => {
-        this.logger.info('Restoring token positions...');
-        for await (const row of this.refetchTokenPositions()) {
-          this.loadTokenPosition(row);
-        }
+        // Does nothing rn...
       },
       transform: async (swaps: SolanaSwap[], controller) =>
         await timeIt(this.logger, 'Extending swaps', async () => {
@@ -286,6 +337,7 @@ export class PriceExtendStream {
             const extendedSwap = await this.processSwap(swap);
             extendedSwaps.push(extendedSwap);
           }
+          this.logAndResetCacheStats();
           controller.enqueue(extendedSwaps);
         }),
     });
