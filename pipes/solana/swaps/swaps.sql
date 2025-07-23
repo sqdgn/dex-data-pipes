@@ -265,11 +265,12 @@ AS
   ORDER BY `pnl_percent` DESC;
 
 CREATE VIEW IF NOT EXISTS tokens_with_last_prices AS
+  WITH tuple(s.timestamp, s.transaction_index, s.instruction_address) AS swap_order
   SELECT
     s.token_a as token,
-    anyLast(s.pool_address) AS pool_address,
-    anyLast(best_pool.pool_address) AS best_pool_address,
-    anyLast(s.token_a_usdc_price) as price
+    argMax(s.pool_address, swap_order) AS pool_address,
+    argMax(best_pool.pool_address, swap_order) AS best_pool_address,
+    argMax(s.token_a_usdc_price, swap_order) as price
   FROM solana_swaps_raw s
   LEFT JOIN
     tokens_with_best_quote_pools(

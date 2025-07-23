@@ -135,7 +135,8 @@ export class PriceExtendStream {
         account_token_positions
       WHERE
         sign > 0
-        AND account={account:String}`,
+        AND account={account:String}
+      ORDER BY (block_number, transaction_index, instruction_address) ASC`,
       query_params: account ? { account } : undefined,
       format: 'JSON',
     });
