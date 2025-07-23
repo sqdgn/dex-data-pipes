@@ -121,8 +121,8 @@ export class PriceExtendStream {
     this.bestPoolMaxDate = bestPoolMaxDate;
   }
 
-  private async refetchPositions(accounts: string[]) {
-    const resp = await this.client.query({
+  private async *refetchPositions(accounts: string[]) {
+    const result = await this.client.query({
       query: `SELECT
         account,
         token_a,
@@ -138,10 +138,14 @@ export class PriceExtendStream {
         AND account IN {accounts:Array(String)}
       ORDER BY (block_number, transaction_index, instruction_address) ASC`,
       query_params: { accounts },
-      format: 'JSON',
+      format: 'JSONEachRow',
     });
-    const { data } = await resp.json<DbSwap>();
-    return data;
+
+    for await (const rows of result.stream<DbSwap>()) {
+      for (const row of rows) {
+        yield row.json();
+      }
+    }
   }
 
   private loadTokenPosition(swap: DbSwap) {
@@ -196,10 +200,9 @@ export class PriceExtendStream {
       // Account positions not found in cache.
       // Try to reload from DB first...
       let dbHit = false;
-      const dbSwaps = await this.refetchPositions([account]);
-      for (const swap of dbSwaps) {
+      for await (const dbSwap of this.refetchPositions([account])) {
         dbHit = true;
-        this.loadTokenPosition(swap);
+        this.loadTokenPosition(dbSwap);
       }
       if (dbHit) {
         ++this.cacheHitRatio.dbHit;
@@ -336,8 +339,7 @@ export class PriceExtendStream {
     const missingAccounts = _.uniq(filteredSwaps.map((s) => s.account)).filter(
       (a) => !this.accountPositions.has(a)
     );
-    const dbData = await this.refetchPositions(missingAccounts);
-    const foundAccounts = _.uniq(dbData.map((s) => s.account)).length;
+    const foundAccounts = new Set<string>();
     // First we populate this.accountPositions with empty maps for
     // each of the missing accounts, because we still want to mark all of
     // them as "loaded into cache", even if they didn't make any swaps yet.
@@ -346,11 +348,12 @@ export class PriceExtendStream {
       this.accountPositions.set(account, new Map());
     }
     // Now we populate the cache with the actual data
-    for (const dbSwap of dbData) {
+    for await (const dbSwap of this.refetchPositions(missingAccounts)) {
+      foundAccounts.add(dbSwap.account);
       this.loadTokenPosition(dbSwap);
     }
     this.logger.debug(
-      `Preloaded positions for ${missingAccounts.length} missing accounts. ${foundAccounts} were found in db.`
+      `Preloaded positions for ${missingAccounts.length} missing accounts. ${foundAccounts.size} were found in db.`
     );
   }
 
