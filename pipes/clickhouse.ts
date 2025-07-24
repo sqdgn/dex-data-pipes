@@ -3,6 +3,7 @@ import assert from 'assert';
 import path from 'node:path';
 import * as process from 'node:process';
 import { ClickHouseClient, createClient } from '@clickhouse/client';
+import { NodeClickHouseClientConfigOptions } from '@clickhouse/client/dist/config';
 
 export async function loadSqlFiles(directoryOrFile: string): Promise<string[]> {
   let sqlFiles: string[] = [];
@@ -56,16 +57,19 @@ export async function ensureTables(
   }
 }
 
-export async function createClickhouseClient() {
+export async function createClickhouseClient(
+  additionalOptions: NodeClickHouseClientConfigOptions = {}
+) {
   assert(
     process.env.CLICKHOUSE_DB,
     'CLICKHOUSE_DB env param must be specified – it must be the same as service name'
   );
-  const options = {
+  const options: NodeClickHouseClientConfigOptions = {
     url: process.env.CLICKHOUSE_URL || 'http://localhost:8123',
     username: process.env.CLICKHOUSE_USER || 'default',
     password: process.env.CLICKHOUSE_PASSWORD || '',
     database: process.env.CLICKHOUSE_DB,
+    ...additionalOptions,
   };
 
   return createClient(options);

@@ -362,7 +362,7 @@ export class PriceExtendStream {
       start: async () => {
         // Does nothing rn...
       },
-      transform: async (swaps: SolanaSwap[], controller) =>
+      transform: async (swaps: SolanaSwap[], controller) => {
         await timeIt(this.logger, 'Extending swaps', async () => {
           const extendedSwaps: ExtendedSolanaSwap[] = [];
           await timeIt(this.logger, 'Preloading positions', async () => {
@@ -374,7 +374,8 @@ export class PriceExtendStream {
           }
           this.logAndResetCacheStats();
           controller.enqueue(extendedSwaps);
-        }),
+        });
+      },
     });
   }
 }
