@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS solana_dex_swaps_10s_candles (
     max_pool_tvl            SimpleAggregateFunction(max, Float64)
 ) ENGINE = AggregatingMergeTree()
   ORDER BY (timestamp, pool_address, token_a, token_b, dex)
-  TTL timestamp + INTERVAL 1 YEAR;
+  TTL timestamp + INTERVAL 30 DAY;
 
 -- Candles - materialized view
 CREATE MATERIALIZED VIEW IF NOT EXISTS solana_dex_swaps_10s_candles_mv

@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS quote_pool_stats_1h (
     volume_1h               SimpleAggregateFunction(sum, Float64),
 ) ENGINE = AggregatingMergeTree()
   ORDER BY (timestamp, pool_address, token_a, token_b, dex)
-  TTL timestamp + INTERVAL 1 YEAR;
+  TTL timestamp + INTERVAL 30 DAY;
 
 -- A materialized view populating the table above
 CREATE MATERIALIZED VIEW IF NOT EXISTS quote_pool_stats_1h_mv
