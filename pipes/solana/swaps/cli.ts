@@ -1,3 +1,4 @@
+import path from 'path';
 import { ClickhouseState } from '@sqd-pipes/core';
 import {
   createClickhouseClient,
@@ -26,7 +27,7 @@ async function main() {
   });
   await ensureTables(
     clickhouse,
-    __dirname,
+    path.join(__dirname, 'sql'),
     undefined,
     process.env.CLICKHOUSE_DB || 'default'
   );
