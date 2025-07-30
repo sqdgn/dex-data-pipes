@@ -40,7 +40,7 @@ async function main() {
     },
     args: {
       dbPath: config.dbPath,
-      onlyTokens: config.onlyTokens,
+      onlyMeta: config.onlyMeta,
     },
     logger,
     state: new ClickhouseState(clickhouse, {

@@ -8,6 +8,7 @@ import { Block, DecodedTransfer, Instruction, SwappedTokenData } from './types';
 import * as tokenProgram from './contracts/token-program';
 import * as token2022Program from './contracts/token-2022-program';
 import { Logger } from 'pino';
+import { DecodedInstruction } from './contracts/abi.support';
 
 export function getInstructionBalances(ins: Instruction, block: Block) {
   return (
@@ -381,4 +382,50 @@ export function timeIt<T>(
   }
   logTime();
   return r;
+}
+
+/**
+ * Validate if src/dest accounts of given transfers match the expected ones.
+ *
+ * @param transferIn   Transfer from user to liquidity pool
+ * @param transferOut  Transfer from liquidity pool to user
+ * @param userIn       User account for input token (transferred to pool)
+ * @param userOut      User account for output token (transferred from pool)
+ * @param reserveIn    Account holding input token reserves
+ * @param reserveOut   Account holding output token reserves
+ * @param txHash       Hash of the transaction (for debugging purposes)
+ * @param dexName      Dex name (for debugging purposes)
+ */
+export function validateSwapAccounts(
+  transferIn: DecodedInstruction<
+    { source: string; destination: string },
+    unknown
+  >,
+  transferOut: DecodedInstruction<
+    { source: string; destination: string },
+    unknown
+  >,
+  userIn: string,
+  userOut: string,
+  reserveIn: string,
+  reserveOut: string,
+  txHash: string,
+  dexName: string
+) {
+  assert(
+    transferIn.accounts.source === userIn,
+    `${dexName}: Input transfer source account does not match user's input token account. Tx: ${txHash}`
+  );
+  assert(
+    transferOut.accounts.destination === userOut,
+    `${dexName}: Output transfer destination account does not match user's output token account. Tx: ${txHash}`
+  );
+  assert(
+    transferIn.accounts.destination === reserveIn,
+    `${dexName}: Input transfer destination account does not match input token reserve account. Tx: ${txHash}`
+  );
+  assert(
+    transferOut.accounts.source === reserveOut,
+    `${dexName}: Output transfer source account does not match output token reserve account. Tx: ${txHash}`
+  );
 }

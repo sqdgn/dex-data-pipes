@@ -1,18 +1,17 @@
+import _ from 'lodash';
 import { DatabaseSync, StatementSync } from 'node:sqlite';
 import {
   SolanaToken,
   SolanaTokenMetadata,
   SolanaTokenMetadataUpdate,
   SolanaTokenMintData,
-} from './types';
-import _ from 'lodash';
-import { TOKENS } from './utils';
+} from '../svm_swaps/types';
+import { TOKENS } from '../svm_swaps/utils';
 
 export class TokenStorage {
-  private db: DatabaseSync;
   private statements: Record<string, StatementSync>;
-  private tokenByMintAcc: Map<string, SolanaToken>;
-  private tokenByMetadataAcc: Map<string, SolanaToken>;
+  private tokenByMintAcc: Map<string, SolanaToken> = new Map();
+  private tokenByMetadataAcc: Map<string, SolanaToken> = new Map();
 
   private readonly insertKeys: (keyof SolanaToken)[] = [
     'mintAcc',
@@ -25,11 +24,8 @@ export class TokenStorage {
     'createdAtBlock',
     'creationTxHash',
   ];
-  constructor(private readonly dbPath: string) {
-    this.db = new DatabaseSync(this.dbPath);
-    this.db.exec('PRAGMA journal_mode = WAL');
-    this.db.exec('PRAGMA synchronous = NORMAL');
-    this.db.exec(
+  constructor(private readonly db: DatabaseSync) {
+    db.exec(
       `CREATE TABLE IF NOT EXISTS "spl_tokens" (
         mintAcc TEXT NOT NULL,
         decimals INTEGER NOT NULL,
@@ -44,14 +40,14 @@ export class TokenStorage {
       )`
     );
     this.statements = {
-      insert: this.db.prepare(
+      insert: db.prepare(
         `INSERT OR IGNORE INTO "spl_tokens" (
             ${this.insertKeys.join(', ')}
         ) VALUES (
             ${this.insertKeys.map((k) => `:${k}`).join(', ')}
         )`
       ),
-      setMetadata: this.db.prepare(
+      setMetadata: db.prepare(
         `UPDATE "spl_tokens" SET
             metadataAcc=:metadataAcc,
             name=:name,
@@ -61,15 +57,13 @@ export class TokenStorage {
             symbol=:symbol
         WHERE mintAcc=:mintAcc`
       ),
-      updateName: this.db.prepare(
+      updateName: db.prepare(
         `UPDATE "spl_tokens" SET name=:name WHERE metadataAcc=:metadataAcc`
       ),
-      updateSymbol: this.db.prepare(`
+      updateSymbol: db.prepare(`
         UPDATE "spl_tokens" SET symbol=:symbol WHERE metadataAcc=:metadataAcc
       `),
     };
-    this.tokenByMintAcc = new Map();
-    this.tokenByMetadataAcc = new Map();
     this.addKnownTokensToCache();
   }
 
@@ -170,11 +164,9 @@ export class TokenStorage {
       }
     }
 
-    this.db.exec(`BEGIN TRANSACTION`);
     this.insertTokens(Array.from(insertsByMint.values()));
     this.setTokensMetadata(Array.from(enrichmentsByMint.values()));
     this.updateTokensMetadata(Array.from(updatesByMeta.values()));
-    this.db.exec(`COMMIT`);
   }
 
   insertTokens(tokens: SolanaTokenMintData[]) {

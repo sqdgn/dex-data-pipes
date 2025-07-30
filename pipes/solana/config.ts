@@ -13,8 +13,8 @@ export function getConfig() {
   const blockTo = process.env.BLOCK_TO
     ? parseInt(process.env.BLOCK_TO)
     : undefined;
-  const onlyTokens = ['t', 'T', 'true', '1'].includes(
-    process.env.ONLY_TOKENS || ''
+  const onlyMeta = ['t', 'T', 'true', '1'].includes(
+    process.env.ONLY_META || ''
   );
   const portalUrl = process.env.PORTAL_URL || DEFAULT_PORTAL_URL;
 
@@ -25,6 +25,6 @@ export function getConfig() {
     portalUrl,
     blockFrom,
     blockTo,
-    onlyTokens,
+    onlyMeta,
   };
 }
