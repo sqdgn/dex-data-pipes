@@ -136,7 +136,7 @@ export class PriceExtendStream {
       WHERE
         sign > 0
         AND account IN {accounts:Array(String)}
-      ORDER BY (block_number, transaction_index, instruction_address) ASC`,
+      ORDER BY (account, block_number, transaction_index, instruction_address) ASC`,
       query_params: { accounts },
       format: 'JSONEachRow',
     });
