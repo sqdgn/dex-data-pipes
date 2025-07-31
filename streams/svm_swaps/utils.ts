@@ -19,6 +19,13 @@ export function getTokenBalance(tokenBalances: Block['tokenBalances'], addr: str
   if (!tokenBalance) {
     throw new Error(`Could not find token balance for account: ${addr}.`);
   }
+  // Normalize amounts
+  if (typeof tokenBalance.preAmount === 'string') {
+    tokenBalance.preAmount = BigInt(tokenBalance.preAmount);
+  }
+  if (typeof tokenBalance.postAmount === 'string') {
+    tokenBalance.postAmount = BigInt(tokenBalance.postAmount);
+  }
   return tokenBalance;
 }
 

@@ -385,7 +385,7 @@ export class SolanaSwapsStream extends PortalAbstractStream<SolanaSwap, Args> {
                 case 'raydium_amm':
                   return {
                     programId: [raydiumAmm.programId],
-                    d1: [
+                    d8: [
                       raydiumAmm.instructions.swapBaseInput.d8,
                       raydiumAmm.instructions.swapBaseOutput.d8,
                     ],
