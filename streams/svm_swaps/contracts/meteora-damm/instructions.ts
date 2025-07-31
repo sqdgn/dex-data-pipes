@@ -1,11 +1,6 @@
-import { struct, u64, bool, unit, option, address } from "@subsquid/borsh";
-import { instruction } from "../abi.support";
-import {
-  CurveType,
-  PoolFees,
-  ConfigParameters,
-  CustomizableParams,
-} from "./types";
+import { struct, u64, bool, unit, option, address } from '@subsquid/borsh';
+import { instruction } from '../abi.support';
+import { CurveType, PoolFees, ConfigParameters, CustomizableParams } from './types';
 
 /**
  * Initialize a new permissioned pool.
@@ -19,7 +14,7 @@ export interface InitializePermissionedPool {
  */
 export const initializePermissionedPool = instruction(
   {
-    d8: "0x4d55b29d3230d47e",
+    d8: '0x4d55b29d3230d47e',
   },
   {
     /**
@@ -113,7 +108,7 @@ export const initializePermissionedPool = instruction(
   },
   struct({
     curveType: CurveType,
-  })
+  }),
 );
 
 /**
@@ -130,7 +125,7 @@ export interface InitializePermissionlessPool {
  */
 export const initializePermissionlessPool = instruction(
   {
-    d8: "0x76ad299dad486167",
+    d8: '0x76ad299dad486167',
   },
   {
     /**
@@ -230,7 +225,7 @@ export const initializePermissionlessPool = instruction(
     curveType: CurveType,
     tokenAAmount: u64,
     tokenBAmount: u64,
-  })
+  }),
 );
 
 /**
@@ -248,7 +243,7 @@ export interface InitializePermissionlessPoolWithFeeTier {
  */
 export const initializePermissionlessPoolWithFeeTier = instruction(
   {
-    d8: "0x06874493e552a971",
+    d8: '0x06874493e552a971',
   },
   {
     /**
@@ -349,7 +344,7 @@ export const initializePermissionlessPoolWithFeeTier = instruction(
     tradeFeeBps: u64,
     tokenAAmount: u64,
     tokenBAmount: u64,
-  })
+  }),
 );
 
 /**
@@ -364,7 +359,7 @@ export interface EnableOrDisablePool {
  */
 export const enableOrDisablePool = instruction(
   {
-    d8: "0x8006e48337a134a9",
+    d8: '0x8006e48337a134a9',
   },
   {
     /**
@@ -378,7 +373,7 @@ export const enableOrDisablePool = instruction(
   },
   struct({
     enable: bool,
-  })
+  }),
 );
 
 /**
@@ -394,7 +389,7 @@ export interface Swap {
  */
 export const swap = instruction(
   {
-    d8: "0xf8c69e91e17587c8",
+    d8: '0xf8c69e91e17587c8',
   },
   {
     /**
@@ -461,7 +456,7 @@ export const swap = instruction(
   struct({
     inAmount: u64,
     minimumOutAmount: u64,
-  })
+  }),
 );
 
 /**
@@ -477,7 +472,7 @@ export interface RemoveLiquiditySingleSide {
  */
 export const removeLiquiditySingleSide = instruction(
   {
-    d8: "0x5454b142feb90afb",
+    d8: '0x5454b142feb90afb',
   },
   {
     /**
@@ -544,7 +539,7 @@ export const removeLiquiditySingleSide = instruction(
   struct({
     poolTokenAmount: u64,
     minimumOutAmount: u64,
-  })
+  }),
 );
 
 /**
@@ -561,7 +556,7 @@ export interface AddImbalanceLiquidity {
  */
 export const addImbalanceLiquidity = instruction(
   {
-    d8: "0x4f237a54ad0f5dbf",
+    d8: '0x4f237a54ad0f5dbf',
   },
   {
     /**
@@ -633,7 +628,7 @@ export const addImbalanceLiquidity = instruction(
     minimumPoolTokenAmount: u64,
     tokenAAmount: u64,
     tokenBAmount: u64,
-  })
+  }),
 );
 
 /**
@@ -650,7 +645,7 @@ export interface RemoveBalanceLiquidity {
  */
 export const removeBalanceLiquidity = instruction(
   {
-    d8: "0x856d2cb338ee7221",
+    d8: '0x856d2cb338ee7221',
   },
   {
     /**
@@ -722,7 +717,7 @@ export const removeBalanceLiquidity = instruction(
     poolTokenAmount: u64,
     minimumATokenOut: u64,
     minimumBTokenOut: u64,
-  })
+  }),
 );
 
 /**
@@ -739,7 +734,7 @@ export interface AddBalanceLiquidity {
  */
 export const addBalanceLiquidity = instruction(
   {
-    d8: "0xa8e3323ebdab54b0",
+    d8: '0xa8e3323ebdab54b0',
   },
   {
     /**
@@ -811,7 +806,7 @@ export const addBalanceLiquidity = instruction(
     poolTokenAmount: u64,
     maximumTokenAAmount: u64,
     maximumTokenBAmount: u64,
-  })
+  }),
 );
 
 /**
@@ -827,7 +822,7 @@ export interface SetPoolFees {
  */
 export const setPoolFees = instruction(
   {
-    d8: "0x662c9e36cd257e4e",
+    d8: '0x662c9e36cd257e4e',
   },
   {
     /**
@@ -842,7 +837,7 @@ export const setPoolFees = instruction(
   struct({
     fees: PoolFees,
     newPartnerFeeNumerator: u64,
-  })
+  }),
 );
 
 /**
@@ -859,7 +854,7 @@ export interface OverrideCurveParam {
  */
 export const overrideCurveParam = instruction(
   {
-    d8: "0x6256cc335e4745bb",
+    d8: '0x6256cc335e4745bb',
   },
   {
     /**
@@ -873,7 +868,7 @@ export const overrideCurveParam = instruction(
   },
   struct({
     curveType: CurveType,
-  })
+  }),
 );
 
 /**
@@ -886,7 +881,7 @@ export type GetPoolInfo = undefined;
  */
 export const getPoolInfo = instruction(
   {
-    d8: "0x0930dc6516f04ec8",
+    d8: '0x0930dc6516f04ec8',
   },
   {
     /**
@@ -922,7 +917,7 @@ export const getPoolInfo = instruction(
      */
     bVaultLpMint: 7,
   },
-  unit
+  unit,
 );
 
 /**
@@ -938,7 +933,7 @@ export interface BootstrapLiquidity {
  */
 export const bootstrapLiquidity = instruction(
   {
-    d8: "0x04e4d747e1fd77ce",
+    d8: '0x04e4d747e1fd77ce',
   },
   {
     /**
@@ -1009,7 +1004,7 @@ export const bootstrapLiquidity = instruction(
   struct({
     tokenAAmount: u64,
     tokenBAmount: u64,
-  })
+  }),
 );
 
 /**
@@ -1022,7 +1017,7 @@ export type CreateMintMetadata = undefined;
  */
 export const createMintMetadata = instruction(
   {
-    d8: "0x0d46a829fa64945a",
+    d8: '0x0d46a829fa64945a',
   },
   {
     /**
@@ -1048,7 +1043,7 @@ export const createMintMetadata = instruction(
      */
     payer: 6,
   },
-  unit
+  unit,
 );
 
 /**
@@ -1061,7 +1056,7 @@ export type CreateLockEscrow = undefined;
  */
 export const createLockEscrow = instruction(
   {
-    d8: "0x3657a51345e3dae0",
+    d8: '0x3657a51345e3dae0',
   },
   {
     /**
@@ -1086,7 +1081,7 @@ export const createLockEscrow = instruction(
      */
     systemProgram: 5,
   },
-  unit
+  unit,
 );
 
 /**
@@ -1101,7 +1096,7 @@ export interface Lock {
  */
 export const lock = instruction(
   {
-    d8: "0x1513d02bed3eff57",
+    d8: '0x1513d02bed3eff57',
   },
   {
     /**
@@ -1159,7 +1154,7 @@ export const lock = instruction(
   },
   struct({
     maxAmount: u64,
-  })
+  }),
 );
 
 /**
@@ -1174,7 +1169,7 @@ export interface ClaimFee {
  */
 export const claimFee = instruction(
   {
-    d8: "0xa9204f8988e84689",
+    d8: '0xa9204f8988e84689',
   },
   {
     /**
@@ -1252,7 +1247,7 @@ export const claimFee = instruction(
   },
   struct({
     maxAmount: u64,
-  })
+  }),
 );
 
 /**
@@ -1267,7 +1262,7 @@ export interface CreateConfig {
  */
 export const createConfig = instruction(
   {
-    d8: "0xc9cff3724b6f2fbd",
+    d8: '0xc9cff3724b6f2fbd',
   },
   {
     config: 0,
@@ -1276,7 +1271,7 @@ export const createConfig = instruction(
   },
   struct({
     configParameters: ConfigParameters,
-  })
+  }),
 );
 
 /**
@@ -1289,14 +1284,14 @@ export type CloseConfig = undefined;
  */
 export const closeConfig = instruction(
   {
-    d8: "0x9109489d5f7d3d55",
+    d8: '0x9109489d5f7d3d55',
   },
   {
     config: 0,
     admin: 1,
     rentReceiver: 2,
   },
-  unit
+  unit,
 );
 
 /**
@@ -1310,110 +1305,109 @@ export interface InitializePermissionlessConstantProductPoolWithConfig {
 /**
  * Initialize permissionless pool with config
  */
-export const initializePermissionlessConstantProductPoolWithConfig =
-  instruction(
-    {
-      d8: "0x07a68aabceabecf4",
-    },
-    {
-      /**
-       * Pool account (PDA address)
-       */
-      pool: 0,
-      config: 1,
-      /**
-       * LP token mint of the pool
-       */
-      lpMint: 2,
-      /**
-       * Token A mint of the pool. Eg: USDT
-       */
-      tokenAMint: 3,
-      /**
-       * Token B mint of the pool. Eg: USDC
-       */
-      tokenBMint: 4,
-      /**
-       * Vault account for token A. Token A of the pool will be deposit / withdraw from this vault account.
-       */
-      aVault: 5,
-      /**
-       * Vault account for token B. Token B of the pool will be deposit / withdraw from this vault account.
-       */
-      bVault: 6,
-      /**
-       * Token vault account of vault A
-       */
-      aTokenVault: 7,
-      /**
-       * Token vault account of vault B
-       */
-      bTokenVault: 8,
-      /**
-       * LP token mint of vault A
-       */
-      aVaultLpMint: 9,
-      /**
-       * LP token mint of vault B
-       */
-      bVaultLpMint: 10,
-      /**
-       * LP token account of vault A. Used to receive/burn the vault LP upon deposit/withdraw from the vault.
-       */
-      aVaultLp: 11,
-      /**
-       * LP token account of vault B. Used to receive/burn vault LP upon deposit/withdraw from the vault.
-       */
-      bVaultLp: 12,
-      /**
-       * Payer token account for pool token A mint. Used to bootstrap the pool with initial liquidity.
-       */
-      payerTokenA: 13,
-      /**
-       * Admin token account for pool token B mint. Used to bootstrap the pool with initial liquidity.
-       */
-      payerTokenB: 14,
-      payerPoolLp: 15,
-      /**
-       * Protocol fee token account for token A. Used to receive trading fee.
-       */
-      protocolTokenAFee: 16,
-      /**
-       * Protocol fee token account for token B. Used to receive trading fee.
-       */
-      protocolTokenBFee: 17,
-      /**
-       * Admin account. This account will be the admin of the pool, and the payer for PDA during initialize pool.
-       */
-      payer: 18,
-      /**
-       * Rent account.
-       */
-      rent: 19,
-      mintMetadata: 20,
-      metadataProgram: 21,
-      /**
-       * Vault program. The pool will deposit/withdraw liquidity from the vault.
-       */
-      vaultProgram: 22,
-      /**
-       * Token program.
-       */
-      tokenProgram: 23,
-      /**
-       * Associated token program.
-       */
-      associatedTokenProgram: 24,
-      /**
-       * System program.
-       */
-      systemProgram: 25,
-    },
-    struct({
-      tokenAAmount: u64,
-      tokenBAmount: u64,
-    })
-  );
+export const initializePermissionlessConstantProductPoolWithConfig = instruction(
+  {
+    d8: '0x07a68aabceabecf4',
+  },
+  {
+    /**
+     * Pool account (PDA address)
+     */
+    pool: 0,
+    config: 1,
+    /**
+     * LP token mint of the pool
+     */
+    lpMint: 2,
+    /**
+     * Token A mint of the pool. Eg: USDT
+     */
+    tokenAMint: 3,
+    /**
+     * Token B mint of the pool. Eg: USDC
+     */
+    tokenBMint: 4,
+    /**
+     * Vault account for token A. Token A of the pool will be deposit / withdraw from this vault account.
+     */
+    aVault: 5,
+    /**
+     * Vault account for token B. Token B of the pool will be deposit / withdraw from this vault account.
+     */
+    bVault: 6,
+    /**
+     * Token vault account of vault A
+     */
+    aTokenVault: 7,
+    /**
+     * Token vault account of vault B
+     */
+    bTokenVault: 8,
+    /**
+     * LP token mint of vault A
+     */
+    aVaultLpMint: 9,
+    /**
+     * LP token mint of vault B
+     */
+    bVaultLpMint: 10,
+    /**
+     * LP token account of vault A. Used to receive/burn the vault LP upon deposit/withdraw from the vault.
+     */
+    aVaultLp: 11,
+    /**
+     * LP token account of vault B. Used to receive/burn vault LP upon deposit/withdraw from the vault.
+     */
+    bVaultLp: 12,
+    /**
+     * Payer token account for pool token A mint. Used to bootstrap the pool with initial liquidity.
+     */
+    payerTokenA: 13,
+    /**
+     * Admin token account for pool token B mint. Used to bootstrap the pool with initial liquidity.
+     */
+    payerTokenB: 14,
+    payerPoolLp: 15,
+    /**
+     * Protocol fee token account for token A. Used to receive trading fee.
+     */
+    protocolTokenAFee: 16,
+    /**
+     * Protocol fee token account for token B. Used to receive trading fee.
+     */
+    protocolTokenBFee: 17,
+    /**
+     * Admin account. This account will be the admin of the pool, and the payer for PDA during initialize pool.
+     */
+    payer: 18,
+    /**
+     * Rent account.
+     */
+    rent: 19,
+    mintMetadata: 20,
+    metadataProgram: 21,
+    /**
+     * Vault program. The pool will deposit/withdraw liquidity from the vault.
+     */
+    vaultProgram: 22,
+    /**
+     * Token program.
+     */
+    tokenProgram: 23,
+    /**
+     * Associated token program.
+     */
+    associatedTokenProgram: 24,
+    /**
+     * System program.
+     */
+    systemProgram: 25,
+  },
+  struct({
+    tokenAAmount: u64,
+    tokenBAmount: u64,
+  }),
+);
 
 /**
  * Initialize permissionless pool with config 2
@@ -1427,111 +1421,110 @@ export interface InitializePermissionlessConstantProductPoolWithConfig2 {
 /**
  * Initialize permissionless pool with config 2
  */
-export const initializePermissionlessConstantProductPoolWithConfig2 =
-  instruction(
-    {
-      d8: "0x3095dc823d0b09b2",
-    },
-    {
-      /**
-       * Pool account (PDA address)
-       */
-      pool: 0,
-      config: 1,
-      /**
-       * LP token mint of the pool
-       */
-      lpMint: 2,
-      /**
-       * Token A mint of the pool. Eg: USDT
-       */
-      tokenAMint: 3,
-      /**
-       * Token B mint of the pool. Eg: USDC
-       */
-      tokenBMint: 4,
-      /**
-       * Vault account for token A. Token A of the pool will be deposit / withdraw from this vault account.
-       */
-      aVault: 5,
-      /**
-       * Vault account for token B. Token B of the pool will be deposit / withdraw from this vault account.
-       */
-      bVault: 6,
-      /**
-       * Token vault account of vault A
-       */
-      aTokenVault: 7,
-      /**
-       * Token vault account of vault B
-       */
-      bTokenVault: 8,
-      /**
-       * LP token mint of vault A
-       */
-      aVaultLpMint: 9,
-      /**
-       * LP token mint of vault B
-       */
-      bVaultLpMint: 10,
-      /**
-       * LP token account of vault A. Used to receive/burn the vault LP upon deposit/withdraw from the vault.
-       */
-      aVaultLp: 11,
-      /**
-       * LP token account of vault B. Used to receive/burn vault LP upon deposit/withdraw from the vault.
-       */
-      bVaultLp: 12,
-      /**
-       * Payer token account for pool token A mint. Used to bootstrap the pool with initial liquidity.
-       */
-      payerTokenA: 13,
-      /**
-       * Admin token account for pool token B mint. Used to bootstrap the pool with initial liquidity.
-       */
-      payerTokenB: 14,
-      payerPoolLp: 15,
-      /**
-       * Protocol fee token account for token A. Used to receive trading fee.
-       */
-      protocolTokenAFee: 16,
-      /**
-       * Protocol fee token account for token B. Used to receive trading fee.
-       */
-      protocolTokenBFee: 17,
-      /**
-       * Admin account. This account will be the admin of the pool, and the payer for PDA during initialize pool.
-       */
-      payer: 18,
-      /**
-       * Rent account.
-       */
-      rent: 19,
-      mintMetadata: 20,
-      metadataProgram: 21,
-      /**
-       * Vault program. The pool will deposit/withdraw liquidity from the vault.
-       */
-      vaultProgram: 22,
-      /**
-       * Token program.
-       */
-      tokenProgram: 23,
-      /**
-       * Associated token program.
-       */
-      associatedTokenProgram: 24,
-      /**
-       * System program.
-       */
-      systemProgram: 25,
-    },
-    struct({
-      tokenAAmount: u64,
-      tokenBAmount: u64,
-      activationPoint: option(u64),
-    })
-  );
+export const initializePermissionlessConstantProductPoolWithConfig2 = instruction(
+  {
+    d8: '0x3095dc823d0b09b2',
+  },
+  {
+    /**
+     * Pool account (PDA address)
+     */
+    pool: 0,
+    config: 1,
+    /**
+     * LP token mint of the pool
+     */
+    lpMint: 2,
+    /**
+     * Token A mint of the pool. Eg: USDT
+     */
+    tokenAMint: 3,
+    /**
+     * Token B mint of the pool. Eg: USDC
+     */
+    tokenBMint: 4,
+    /**
+     * Vault account for token A. Token A of the pool will be deposit / withdraw from this vault account.
+     */
+    aVault: 5,
+    /**
+     * Vault account for token B. Token B of the pool will be deposit / withdraw from this vault account.
+     */
+    bVault: 6,
+    /**
+     * Token vault account of vault A
+     */
+    aTokenVault: 7,
+    /**
+     * Token vault account of vault B
+     */
+    bTokenVault: 8,
+    /**
+     * LP token mint of vault A
+     */
+    aVaultLpMint: 9,
+    /**
+     * LP token mint of vault B
+     */
+    bVaultLpMint: 10,
+    /**
+     * LP token account of vault A. Used to receive/burn the vault LP upon deposit/withdraw from the vault.
+     */
+    aVaultLp: 11,
+    /**
+     * LP token account of vault B. Used to receive/burn vault LP upon deposit/withdraw from the vault.
+     */
+    bVaultLp: 12,
+    /**
+     * Payer token account for pool token A mint. Used to bootstrap the pool with initial liquidity.
+     */
+    payerTokenA: 13,
+    /**
+     * Admin token account for pool token B mint. Used to bootstrap the pool with initial liquidity.
+     */
+    payerTokenB: 14,
+    payerPoolLp: 15,
+    /**
+     * Protocol fee token account for token A. Used to receive trading fee.
+     */
+    protocolTokenAFee: 16,
+    /**
+     * Protocol fee token account for token B. Used to receive trading fee.
+     */
+    protocolTokenBFee: 17,
+    /**
+     * Admin account. This account will be the admin of the pool, and the payer for PDA during initialize pool.
+     */
+    payer: 18,
+    /**
+     * Rent account.
+     */
+    rent: 19,
+    mintMetadata: 20,
+    metadataProgram: 21,
+    /**
+     * Vault program. The pool will deposit/withdraw liquidity from the vault.
+     */
+    vaultProgram: 22,
+    /**
+     * Token program.
+     */
+    tokenProgram: 23,
+    /**
+     * Associated token program.
+     */
+    associatedTokenProgram: 24,
+    /**
+     * System program.
+     */
+    systemProgram: 25,
+  },
+  struct({
+    tokenAAmount: u64,
+    tokenBAmount: u64,
+    activationPoint: option(u64),
+  }),
+);
 
 /**
  * Initialize permissionless pool with customizable params
@@ -1545,110 +1538,109 @@ export interface InitializeCustomizablePermissionlessConstantProductPool {
 /**
  * Initialize permissionless pool with customizable params
  */
-export const initializeCustomizablePermissionlessConstantProductPool =
-  instruction(
-    {
-      d8: "0x9118acc2db7d03be",
-    },
-    {
-      /**
-       * Pool account (PDA address)
-       */
-      pool: 0,
-      /**
-       * LP token mint of the pool
-       */
-      lpMint: 1,
-      /**
-       * Token A mint of the pool. Eg: USDT
-       */
-      tokenAMint: 2,
-      /**
-       * Token B mint of the pool. Eg: USDC
-       */
-      tokenBMint: 3,
-      /**
-       * Vault account for token A. Token A of the pool will be deposit / withdraw from this vault account.
-       */
-      aVault: 4,
-      /**
-       * Vault account for token B. Token B of the pool will be deposit / withdraw from this vault account.
-       */
-      bVault: 5,
-      /**
-       * Token vault account of vault A
-       */
-      aTokenVault: 6,
-      /**
-       * Token vault account of vault B
-       */
-      bTokenVault: 7,
-      /**
-       * LP token mint of vault A
-       */
-      aVaultLpMint: 8,
-      /**
-       * LP token mint of vault B
-       */
-      bVaultLpMint: 9,
-      /**
-       * LP token account of vault A. Used to receive/burn the vault LP upon deposit/withdraw from the vault.
-       */
-      aVaultLp: 10,
-      /**
-       * LP token account of vault B. Used to receive/burn vault LP upon deposit/withdraw from the vault.
-       */
-      bVaultLp: 11,
-      /**
-       * Payer token account for pool token A mint. Used to bootstrap the pool with initial liquidity.
-       */
-      payerTokenA: 12,
-      /**
-       * Admin token account for pool token B mint. Used to bootstrap the pool with initial liquidity.
-       */
-      payerTokenB: 13,
-      payerPoolLp: 14,
-      /**
-       * Protocol fee token account for token A. Used to receive trading fee.
-       */
-      protocolTokenAFee: 15,
-      /**
-       * Protocol fee token account for token B. Used to receive trading fee.
-       */
-      protocolTokenBFee: 16,
-      /**
-       * Admin account. This account will be the admin of the pool, and the payer for PDA during initialize pool.
-       */
-      payer: 17,
-      /**
-       * Rent account.
-       */
-      rent: 18,
-      mintMetadata: 19,
-      metadataProgram: 20,
-      /**
-       * Vault program. The pool will deposit/withdraw liquidity from the vault.
-       */
-      vaultProgram: 21,
-      /**
-       * Token program.
-       */
-      tokenProgram: 22,
-      /**
-       * Associated token program.
-       */
-      associatedTokenProgram: 23,
-      /**
-       * System program.
-       */
-      systemProgram: 24,
-    },
-    struct({
-      tokenAAmount: u64,
-      tokenBAmount: u64,
-      params: CustomizableParams,
-    })
-  );
+export const initializeCustomizablePermissionlessConstantProductPool = instruction(
+  {
+    d8: '0x9118acc2db7d03be',
+  },
+  {
+    /**
+     * Pool account (PDA address)
+     */
+    pool: 0,
+    /**
+     * LP token mint of the pool
+     */
+    lpMint: 1,
+    /**
+     * Token A mint of the pool. Eg: USDT
+     */
+    tokenAMint: 2,
+    /**
+     * Token B mint of the pool. Eg: USDC
+     */
+    tokenBMint: 3,
+    /**
+     * Vault account for token A. Token A of the pool will be deposit / withdraw from this vault account.
+     */
+    aVault: 4,
+    /**
+     * Vault account for token B. Token B of the pool will be deposit / withdraw from this vault account.
+     */
+    bVault: 5,
+    /**
+     * Token vault account of vault A
+     */
+    aTokenVault: 6,
+    /**
+     * Token vault account of vault B
+     */
+    bTokenVault: 7,
+    /**
+     * LP token mint of vault A
+     */
+    aVaultLpMint: 8,
+    /**
+     * LP token mint of vault B
+     */
+    bVaultLpMint: 9,
+    /**
+     * LP token account of vault A. Used to receive/burn the vault LP upon deposit/withdraw from the vault.
+     */
+    aVaultLp: 10,
+    /**
+     * LP token account of vault B. Used to receive/burn vault LP upon deposit/withdraw from the vault.
+     */
+    bVaultLp: 11,
+    /**
+     * Payer token account for pool token A mint. Used to bootstrap the pool with initial liquidity.
+     */
+    payerTokenA: 12,
+    /**
+     * Admin token account for pool token B mint. Used to bootstrap the pool with initial liquidity.
+     */
+    payerTokenB: 13,
+    payerPoolLp: 14,
+    /**
+     * Protocol fee token account for token A. Used to receive trading fee.
+     */
+    protocolTokenAFee: 15,
+    /**
+     * Protocol fee token account for token B. Used to receive trading fee.
+     */
+    protocolTokenBFee: 16,
+    /**
+     * Admin account. This account will be the admin of the pool, and the payer for PDA during initialize pool.
+     */
+    payer: 17,
+    /**
+     * Rent account.
+     */
+    rent: 18,
+    mintMetadata: 19,
+    metadataProgram: 20,
+    /**
+     * Vault program. The pool will deposit/withdraw liquidity from the vault.
+     */
+    vaultProgram: 21,
+    /**
+     * Token program.
+     */
+    tokenProgram: 22,
+    /**
+     * Associated token program.
+     */
+    associatedTokenProgram: 23,
+    /**
+     * System program.
+     */
+    systemProgram: 24,
+  },
+  struct({
+    tokenAAmount: u64,
+    tokenBAmount: u64,
+    params: CustomizableParams,
+  }),
+);
 
 /**
  * Update activation slot
@@ -1662,7 +1654,7 @@ export interface UpdateActivationPoint {
  */
 export const updateActivationPoint = instruction(
   {
-    d8: "0x963e7ddbabdc1aed",
+    d8: '0x963e7ddbabdc1aed',
   },
   {
     /**
@@ -1676,7 +1668,7 @@ export const updateActivationPoint = instruction(
   },
   struct({
     newActivationPoint: u64,
-  })
+  }),
 );
 
 /**
@@ -1689,7 +1681,7 @@ export type WithdrawProtocolFees = undefined;
  */
 export const withdrawProtocolFees = instruction(
   {
-    d8: "0x0b44a56212d08649",
+    d8: '0x0b44a56212d08649',
   },
   {
     /**
@@ -1703,7 +1695,7 @@ export const withdrawProtocolFees = instruction(
     treasuryTokenB: 5,
     tokenProgram: 6,
   },
-  unit
+  unit,
 );
 
 /**
@@ -1718,7 +1710,7 @@ export interface SetWhitelistedVault {
  */
 export const setWhitelistedVault = instruction(
   {
-    d8: "0x0c945e2a373953f7",
+    d8: '0x0c945e2a373953f7',
   },
   {
     pool: 0,
@@ -1726,7 +1718,7 @@ export const setWhitelistedVault = instruction(
   },
   struct({
     whitelistedVault: address,
-  })
+  }),
 );
 
 /**
@@ -1742,7 +1734,7 @@ export interface PartnerClaimFee {
  */
 export const partnerClaimFee = instruction(
   {
-    d8: "0x3935b01e7b463440",
+    d8: '0x3935b01e7b463440',
   },
   {
     /**
@@ -1760,5 +1752,5 @@ export const partnerClaimFee = instruction(
   struct({
     maxAmountA: u64,
     maxAmountB: u64,
-  })
+  }),
 );

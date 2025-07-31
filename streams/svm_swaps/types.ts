@@ -5,26 +5,21 @@ import { BlockRef } from '@sqd-pipes/core';
 type WithPickedFields<
   Selection extends FieldSelection,
   K extends keyof Selection,
-  FullDataType
+  FullDataType,
 > = Pick<FullDataType, keyof Selection[K] & keyof FullDataType>;
 
-export type PartialInstruction<Selection extends FieldSelection> =
-  WithPickedFields<Selection, 'instruction', PortalData.Instruction>;
+export type PartialInstruction<Selection extends FieldSelection> = WithPickedFields<
+  Selection,
+  'instruction',
+  PortalData.Instruction
+>;
 
 export type PartialBlock<Selection extends FieldSelection> = {
   header: WithPickedFields<Selection, 'block', PortalData.BlockHeader>;
-  transactions: WithPickedFields<
-    Selection,
-    'transaction',
-    PortalData.Transaction
-  >[];
+  transactions: WithPickedFields<Selection, 'transaction', PortalData.Transaction>[];
   instructions: PartialInstruction<Selection>[];
   logs: WithPickedFields<Selection, 'log', PortalData.LogMessage>[];
-  tokenBalances: WithPickedFields<
-    Selection,
-    'tokenBalance',
-    PortalData.TokenBalance
-  >[];
+  tokenBalances: WithPickedFields<Selection, 'tokenBalance', PortalData.TokenBalance>[];
 };
 
 export interface TokenAmount {
@@ -135,7 +130,8 @@ export type SwapType =
   | 'meteora_damm'
   | 'meteora_dlmm'
   | 'raydium_clmm'
-  | 'raydium_amm';
+  | 'raydium_amm'
+  | 'raydium_launchlab';
 
 export type SolanaSwapCore = {
   // Dex where the swap occurred
@@ -163,4 +159,16 @@ export type SolanaSwap = SolanaSwapCore & {
   block: BlockRef;
   // Transaction timestamp
   timestamp: Date;
+};
+
+// Ref: https://github.com/raydium-io/raydium-sdk-V2/blob/4e4699ee9161e615ae5a1a557329a9fbd39d8a71/src/raydium/launchpad/curve/curve.ts#L479
+export enum LaunchLabCurveType {
+  ConstantProduct = 0,
+  FixedPrice = 1,
+  Linear = 2,
+}
+
+export type LaunchLabConfig = {
+  account: string;
+  curveType: LaunchLabCurveType;
 };

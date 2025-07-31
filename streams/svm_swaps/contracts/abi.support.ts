@@ -1,6 +1,6 @@
-import { Codec, GetCodecType, Src } from "@subsquid/borsh";
-import { getInstructionData } from "@subsquid/solana-stream";
-import assert from "assert";
+import { Codec, GetCodecType, Src } from '@subsquid/borsh';
+import { getInstructionData } from '@subsquid/solana-stream';
+import assert from 'assert';
 
 export type Bytes = string;
 export type Base58Bytes = string;
@@ -8,7 +8,7 @@ export type Base58Bytes = string;
 export function instruction<
   D extends Discriminator,
   A extends Record<string, number>,
-  DataCodec extends Codec<any>
+  DataCodec extends Codec<any>,
 >(d: D, accounts: A, data: DataCodec): DeriveInstruction<D, A, DataCodec> {
   let ins = new Instruction(accounts, data);
   Object.assign(ins, d);
@@ -17,7 +17,7 @@ export function instruction<
 
 export function event<D extends Discriminator, DataCodec extends Codec<any>>(
   d: D,
-  data: DataCodec
+  data: DataCodec,
 ): DeriveEvent<D, DataCodec> {
   let event = new Event(data);
   Object.assign(event, d);
@@ -25,13 +25,10 @@ export function event<D extends Discriminator, DataCodec extends Codec<any>>(
 }
 
 type DeriveInstruction<D, A, DataCodec> = Simplify<
-  RemoveUndefined<D> &
-    Instruction<{ [K in keyof A]: Base58Bytes }, GetCodecType<DataCodec>>
+  RemoveUndefined<D> & Instruction<{ [K in keyof A]: Base58Bytes }, GetCodecType<DataCodec>>
 >;
 
-type DeriveEvent<D, DataCodec> = Simplify<
-  RemoveUndefined<D> & Event<GetCodecType<DataCodec>>
->;
+type DeriveEvent<D, DataCodec> = Simplify<RemoveUndefined<D> & Event<GetCodecType<DataCodec>>>;
 
 export type Simplify<T> = {
   [K in keyof T]: T[K];
@@ -44,17 +41,19 @@ type RemoveUndefined<T> = {
 class Instruction<A, D> {
   constructor(
     private accounts: { [K in keyof A]: number },
-    private data: Codec<D>
+    private data: Codec<D>,
   ) {}
 
-  accountSelection(accounts: {
-    [K in keyof A]?: Base58Bytes[];
-  }): AccountSelection {
+  accountSelection(
+    accounts: {
+      [K in keyof A]?: Base58Bytes[];
+    },
+  ): AccountSelection {
     let selection: any = {};
     for (let key in accounts) {
       let idx = this.accounts[key];
       assert(idx < 10);
-      selection["a" + idx] = accounts[key];
+      selection['a' + idx] = accounts[key];
     }
     return selection;
   }
@@ -167,7 +166,7 @@ class Event<D> {
 }
 
 function decodeHex(bytes: Bytes): Uint8Array {
-  return Buffer.from(bytes.slice(2), "hex");
+  return Buffer.from(bytes.slice(2), 'hex');
 }
 
 export interface DecodedInstruction<A, D> {

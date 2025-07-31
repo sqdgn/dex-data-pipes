@@ -1,22 +1,11 @@
-import {
-  struct,
-  address,
-  u16,
-  u128,
-  i32,
-  u8,
-  u64,
-  unit,
-  bool,
-  option,
-} from "@subsquid/borsh";
-import { instruction } from "../abi.support";
+import { struct, address, u16, u128, i32, u8, u64, unit, bool, option } from '@subsquid/borsh';
+import { instruction } from '../abi.support';
 import {
   WhirlpoolBumps,
   OpenPositionBumps,
   OpenPositionWithMetadataBumps,
   RemainingAccountsInfo,
-} from "./types";
+} from './types';
 
 export interface InitializeConfig {
   feeAuthority: string;
@@ -27,7 +16,7 @@ export interface InitializeConfig {
 
 export const initializeConfig = instruction(
   {
-    d8: "0xd07f1501c2bec446",
+    d8: '0xd07f1501c2bec446',
   },
   {
     config: 0,
@@ -39,7 +28,7 @@ export const initializeConfig = instruction(
     collectProtocolFeesAuthority: address,
     rewardEmissionsSuperAuthority: address,
     defaultProtocolFeeRate: u16,
-  })
+  }),
 );
 
 export interface InitializePool {
@@ -50,7 +39,7 @@ export interface InitializePool {
 
 export const initializePool = instruction(
   {
-    d8: "0x5fb40aac54aee828",
+    d8: '0x5fb40aac54aee828',
   },
   {
     whirlpoolsConfig: 0,
@@ -69,7 +58,7 @@ export const initializePool = instruction(
     bumps: WhirlpoolBumps,
     tickSpacing: u16,
     initialSqrtPrice: u128,
-  })
+  }),
 );
 
 export interface InitializeTickArray {
@@ -78,7 +67,7 @@ export interface InitializeTickArray {
 
 export const initializeTickArray = instruction(
   {
-    d8: "0x0bbcc1d68d5b95b8",
+    d8: '0x0bbcc1d68d5b95b8',
   },
   {
     whirlpool: 0,
@@ -88,7 +77,7 @@ export const initializeTickArray = instruction(
   },
   struct({
     startTickIndex: i32,
-  })
+  }),
 );
 
 export interface InitializeFeeTier {
@@ -98,7 +87,7 @@ export interface InitializeFeeTier {
 
 export const initializeFeeTier = instruction(
   {
-    d8: "0xb74a9ca070022a1e",
+    d8: '0xb74a9ca070022a1e',
   },
   {
     config: 0,
@@ -110,7 +99,7 @@ export const initializeFeeTier = instruction(
   struct({
     tickSpacing: u16,
     defaultFeeRate: u16,
-  })
+  }),
 );
 
 export interface InitializeReward {
@@ -119,7 +108,7 @@ export interface InitializeReward {
 
 export const initializeReward = instruction(
   {
-    d8: "0x5f87c0c4f281e644",
+    d8: '0x5f87c0c4f281e644',
   },
   {
     rewardAuthority: 0,
@@ -133,7 +122,7 @@ export const initializeReward = instruction(
   },
   struct({
     rewardIndex: u8,
-  })
+  }),
 );
 
 export interface SetRewardEmissions {
@@ -143,7 +132,7 @@ export interface SetRewardEmissions {
 
 export const setRewardEmissions = instruction(
   {
-    d8: "0x0dc556a86db01bf4",
+    d8: '0x0dc556a86db01bf4',
   },
   {
     whirlpool: 0,
@@ -153,7 +142,7 @@ export const setRewardEmissions = instruction(
   struct({
     rewardIndex: u8,
     emissionsPerSecondX64: u128,
-  })
+  }),
 );
 
 export interface OpenPosition {
@@ -164,7 +153,7 @@ export interface OpenPosition {
 
 export const openPosition = instruction(
   {
-    d8: "0x87802f4d0f98f031",
+    d8: '0x87802f4d0f98f031',
   },
   {
     funder: 0,
@@ -182,7 +171,7 @@ export const openPosition = instruction(
     bumps: OpenPositionBumps,
     tickLowerIndex: i32,
     tickUpperIndex: i32,
-  })
+  }),
 );
 
 export interface OpenPositionWithMetadata {
@@ -193,7 +182,7 @@ export interface OpenPositionWithMetadata {
 
 export const openPositionWithMetadata = instruction(
   {
-    d8: "0xf21d86303a6e0e3c",
+    d8: '0xf21d86303a6e0e3c',
   },
   {
     funder: 0,
@@ -214,7 +203,7 @@ export const openPositionWithMetadata = instruction(
     bumps: OpenPositionWithMetadataBumps,
     tickLowerIndex: i32,
     tickUpperIndex: i32,
-  })
+  }),
 );
 
 export interface IncreaseLiquidity {
@@ -225,7 +214,7 @@ export interface IncreaseLiquidity {
 
 export const increaseLiquidity = instruction(
   {
-    d8: "0x2e9cf3760dcdfbb2",
+    d8: '0x2e9cf3760dcdfbb2',
   },
   {
     whirlpool: 0,
@@ -244,7 +233,7 @@ export const increaseLiquidity = instruction(
     liquidityAmount: u128,
     tokenMaxA: u64,
     tokenMaxB: u64,
-  })
+  }),
 );
 
 export interface DecreaseLiquidity {
@@ -255,7 +244,7 @@ export interface DecreaseLiquidity {
 
 export const decreaseLiquidity = instruction(
   {
-    d8: "0xa026d06f685b2c01",
+    d8: '0xa026d06f685b2c01',
   },
   {
     whirlpool: 0,
@@ -274,14 +263,14 @@ export const decreaseLiquidity = instruction(
     liquidityAmount: u128,
     tokenMinA: u64,
     tokenMinB: u64,
-  })
+  }),
 );
 
 export type UpdateFeesAndRewards = undefined;
 
 export const updateFeesAndRewards = instruction(
   {
-    d8: "0x9ae6fa0decd14bdf",
+    d8: '0x9ae6fa0decd14bdf',
   },
   {
     whirlpool: 0,
@@ -289,14 +278,14 @@ export const updateFeesAndRewards = instruction(
     tickArrayLower: 2,
     tickArrayUpper: 3,
   },
-  unit
+  unit,
 );
 
 export type CollectFees = undefined;
 
 export const collectFees = instruction(
   {
-    d8: "0xa498cf631eba13b6",
+    d8: '0xa498cf631eba13b6',
   },
   {
     whirlpool: 0,
@@ -309,7 +298,7 @@ export const collectFees = instruction(
     tokenVaultB: 7,
     tokenProgram: 8,
   },
-  unit
+  unit,
 );
 
 export interface CollectReward {
@@ -318,7 +307,7 @@ export interface CollectReward {
 
 export const collectReward = instruction(
   {
-    d8: "0x4605845756ebb122",
+    d8: '0x4605845756ebb122',
   },
   {
     whirlpool: 0,
@@ -331,14 +320,14 @@ export const collectReward = instruction(
   },
   struct({
     rewardIndex: u8,
-  })
+  }),
 );
 
 export type CollectProtocolFees = undefined;
 
 export const collectProtocolFees = instruction(
   {
-    d8: "0x1643176296b246dc",
+    d8: '0x1643176296b246dc',
   },
   {
     whirlpoolsConfig: 0,
@@ -350,7 +339,7 @@ export const collectProtocolFees = instruction(
     tokenDestinationB: 6,
     tokenProgram: 7,
   },
-  unit
+  unit,
 );
 
 export interface Swap {
@@ -363,7 +352,7 @@ export interface Swap {
 
 export const swap = instruction(
   {
-    d8: "0xf8c69e91e17587c8",
+    d8: '0xf8c69e91e17587c8',
   },
   {
     tokenProgram: 0,
@@ -384,14 +373,14 @@ export const swap = instruction(
     sqrtPriceLimit: u128,
     amountSpecifiedIsInput: bool,
     aToB: bool,
-  })
+  }),
 );
 
 export type ClosePosition = undefined;
 
 export const closePosition = instruction(
   {
-    d8: "0x7b86510031446262",
+    d8: '0x7b86510031446262',
   },
   {
     positionAuthority: 0,
@@ -401,7 +390,7 @@ export const closePosition = instruction(
     positionTokenAccount: 4,
     tokenProgram: 5,
   },
-  unit
+  unit,
 );
 
 export interface SetDefaultFeeRate {
@@ -410,7 +399,7 @@ export interface SetDefaultFeeRate {
 
 export const setDefaultFeeRate = instruction(
   {
-    d8: "0x76d7d69db6e5d0e4",
+    d8: '0x76d7d69db6e5d0e4',
   },
   {
     whirlpoolsConfig: 0,
@@ -419,7 +408,7 @@ export const setDefaultFeeRate = instruction(
   },
   struct({
     defaultFeeRate: u16,
-  })
+  }),
 );
 
 export interface SetDefaultProtocolFeeRate {
@@ -428,7 +417,7 @@ export interface SetDefaultProtocolFeeRate {
 
 export const setDefaultProtocolFeeRate = instruction(
   {
-    d8: "0x6bcdf9e297235600",
+    d8: '0x6bcdf9e297235600',
   },
   {
     whirlpoolsConfig: 0,
@@ -436,7 +425,7 @@ export const setDefaultProtocolFeeRate = instruction(
   },
   struct({
     defaultProtocolFeeRate: u16,
-  })
+  }),
 );
 
 export interface SetFeeRate {
@@ -445,7 +434,7 @@ export interface SetFeeRate {
 
 export const setFeeRate = instruction(
   {
-    d8: "0x35f38941088c9e06",
+    d8: '0x35f38941088c9e06',
   },
   {
     whirlpoolsConfig: 0,
@@ -454,7 +443,7 @@ export const setFeeRate = instruction(
   },
   struct({
     feeRate: u16,
-  })
+  }),
 );
 
 export interface SetProtocolFeeRate {
@@ -463,7 +452,7 @@ export interface SetProtocolFeeRate {
 
 export const setProtocolFeeRate = instruction(
   {
-    d8: "0x5f0704329a4f9c83",
+    d8: '0x5f0704329a4f9c83',
   },
   {
     whirlpoolsConfig: 0,
@@ -472,35 +461,35 @@ export const setProtocolFeeRate = instruction(
   },
   struct({
     protocolFeeRate: u16,
-  })
+  }),
 );
 
 export type SetFeeAuthority = undefined;
 
 export const setFeeAuthority = instruction(
   {
-    d8: "0x1f013257ed656184",
+    d8: '0x1f013257ed656184',
   },
   {
     whirlpoolsConfig: 0,
     feeAuthority: 1,
     newFeeAuthority: 2,
   },
-  unit
+  unit,
 );
 
 export type SetCollectProtocolFeesAuthority = undefined;
 
 export const setCollectProtocolFeesAuthority = instruction(
   {
-    d8: "0x22965df48be1e943",
+    d8: '0x22965df48be1e943',
   },
   {
     whirlpoolsConfig: 0,
     collectProtocolFeesAuthority: 1,
     newCollectProtocolFeesAuthority: 2,
   },
-  unit
+  unit,
 );
 
 export interface SetRewardAuthority {
@@ -509,7 +498,7 @@ export interface SetRewardAuthority {
 
 export const setRewardAuthority = instruction(
   {
-    d8: "0x2227b7fc531c557f",
+    d8: '0x2227b7fc531c557f',
   },
   {
     whirlpool: 0,
@@ -518,7 +507,7 @@ export const setRewardAuthority = instruction(
   },
   struct({
     rewardIndex: u8,
-  })
+  }),
 );
 
 export interface SetRewardAuthorityBySuperAuthority {
@@ -527,7 +516,7 @@ export interface SetRewardAuthorityBySuperAuthority {
 
 export const setRewardAuthorityBySuperAuthority = instruction(
   {
-    d8: "0xf09ac9c6945d3819",
+    d8: '0xf09ac9c6945d3819',
   },
   {
     whirlpoolsConfig: 0,
@@ -537,21 +526,21 @@ export const setRewardAuthorityBySuperAuthority = instruction(
   },
   struct({
     rewardIndex: u8,
-  })
+  }),
 );
 
 export type SetRewardEmissionsSuperAuthority = undefined;
 
 export const setRewardEmissionsSuperAuthority = instruction(
   {
-    d8: "0xcf05c8d17a3852b7",
+    d8: '0xcf05c8d17a3852b7',
   },
   {
     whirlpoolsConfig: 0,
     rewardEmissionsSuperAuthority: 1,
     newRewardEmissionsSuperAuthority: 2,
   },
-  unit
+  unit,
 );
 
 export interface TwoHopSwap {
@@ -566,7 +555,7 @@ export interface TwoHopSwap {
 
 export const twoHopSwap = instruction(
   {
-    d8: "0xc360ed6c44a2dbe6",
+    d8: '0xc360ed6c44a2dbe6',
   },
   {
     tokenProgram: 0,
@@ -598,14 +587,14 @@ export const twoHopSwap = instruction(
     aToBTwo: bool,
     sqrtPriceLimitOne: u128,
     sqrtPriceLimitTwo: u128,
-  })
+  }),
 );
 
 export type InitializePositionBundle = undefined;
 
 export const initializePositionBundle = instruction(
   {
-    d8: "0x752df1951812c241",
+    d8: '0x752df1951812c241',
   },
   {
     positionBundle: 0,
@@ -618,14 +607,14 @@ export const initializePositionBundle = instruction(
     rent: 7,
     associatedTokenProgram: 8,
   },
-  unit
+  unit,
 );
 
 export type InitializePositionBundleWithMetadata = undefined;
 
 export const initializePositionBundleWithMetadata = instruction(
   {
-    d8: "0x5d7c10b3f98373f5",
+    d8: '0x5d7c10b3f98373f5',
   },
   {
     positionBundle: 0,
@@ -641,14 +630,14 @@ export const initializePositionBundleWithMetadata = instruction(
     associatedTokenProgram: 10,
     metadataProgram: 11,
   },
-  unit
+  unit,
 );
 
 export type DeletePositionBundle = undefined;
 
 export const deletePositionBundle = instruction(
   {
-    d8: "0x64196302d9ef7cad",
+    d8: '0x64196302d9ef7cad',
   },
   {
     positionBundle: 0,
@@ -658,7 +647,7 @@ export const deletePositionBundle = instruction(
     receiver: 4,
     tokenProgram: 5,
   },
-  unit
+  unit,
 );
 
 export interface OpenBundledPosition {
@@ -669,7 +658,7 @@ export interface OpenBundledPosition {
 
 export const openBundledPosition = instruction(
   {
-    d8: "0xa9717eabd5acd431",
+    d8: '0xa9717eabd5acd431',
   },
   {
     bundledPosition: 0,
@@ -685,7 +674,7 @@ export const openBundledPosition = instruction(
     bundleIndex: u16,
     tickLowerIndex: i32,
     tickUpperIndex: i32,
-  })
+  }),
 );
 
 export interface CloseBundledPosition {
@@ -694,7 +683,7 @@ export interface CloseBundledPosition {
 
 export const closeBundledPosition = instruction(
   {
-    d8: "0x2924d8f51b556743",
+    d8: '0x2924d8f51b556743',
   },
   {
     bundledPosition: 0,
@@ -705,7 +694,7 @@ export const closeBundledPosition = instruction(
   },
   struct({
     bundleIndex: u16,
-  })
+  }),
 );
 
 export interface CollectFeesV2 {
@@ -714,7 +703,7 @@ export interface CollectFeesV2 {
 
 export const collectFeesV2 = instruction(
   {
-    d8: "0xcf755fbfe5b4e20f",
+    d8: '0xcf755fbfe5b4e20f',
   },
   {
     whirlpool: 0,
@@ -733,7 +722,7 @@ export const collectFeesV2 = instruction(
   },
   struct({
     remainingAccountsInfo: option(RemainingAccountsInfo),
-  })
+  }),
 );
 
 export interface CollectProtocolFeesV2 {
@@ -742,7 +731,7 @@ export interface CollectProtocolFeesV2 {
 
 export const collectProtocolFeesV2 = instruction(
   {
-    d8: "0x6780de8672c816c8",
+    d8: '0x6780de8672c816c8',
   },
   {
     whirlpoolsConfig: 0,
@@ -760,7 +749,7 @@ export const collectProtocolFeesV2 = instruction(
   },
   struct({
     remainingAccountsInfo: option(RemainingAccountsInfo),
-  })
+  }),
 );
 
 export interface CollectRewardV2 {
@@ -770,7 +759,7 @@ export interface CollectRewardV2 {
 
 export const collectRewardV2 = instruction(
   {
-    d8: "0xb16b25b4a01331d1",
+    d8: '0xb16b25b4a01331d1',
   },
   {
     whirlpool: 0,
@@ -786,7 +775,7 @@ export const collectRewardV2 = instruction(
   struct({
     rewardIndex: u8,
     remainingAccountsInfo: option(RemainingAccountsInfo),
-  })
+  }),
 );
 
 export interface DecreaseLiquidityV2 {
@@ -798,7 +787,7 @@ export interface DecreaseLiquidityV2 {
 
 export const decreaseLiquidityV2 = instruction(
   {
-    d8: "0x3a7fbc3e4f52c460",
+    d8: '0x3a7fbc3e4f52c460',
   },
   {
     whirlpool: 0,
@@ -822,7 +811,7 @@ export const decreaseLiquidityV2 = instruction(
     tokenMinA: u64,
     tokenMinB: u64,
     remainingAccountsInfo: option(RemainingAccountsInfo),
-  })
+  }),
 );
 
 export interface IncreaseLiquidityV2 {
@@ -834,7 +823,7 @@ export interface IncreaseLiquidityV2 {
 
 export const increaseLiquidityV2 = instruction(
   {
-    d8: "0x851d59df45eeb00a",
+    d8: '0x851d59df45eeb00a',
   },
   {
     whirlpool: 0,
@@ -858,7 +847,7 @@ export const increaseLiquidityV2 = instruction(
     tokenMaxA: u64,
     tokenMaxB: u64,
     remainingAccountsInfo: option(RemainingAccountsInfo),
-  })
+  }),
 );
 
 export interface InitializePoolV2 {
@@ -868,7 +857,7 @@ export interface InitializePoolV2 {
 
 export const initializePoolV2 = instruction(
   {
-    d8: "0xcf2d57f21b3fcc43",
+    d8: '0xcf2d57f21b3fcc43',
   },
   {
     whirlpoolsConfig: 0,
@@ -889,7 +878,7 @@ export const initializePoolV2 = instruction(
   struct({
     tickSpacing: u16,
     initialSqrtPrice: u128,
-  })
+  }),
 );
 
 export interface InitializeRewardV2 {
@@ -898,7 +887,7 @@ export interface InitializeRewardV2 {
 
 export const initializeRewardV2 = instruction(
   {
-    d8: "0x5b014d32ebe58531",
+    d8: '0x5b014d32ebe58531',
   },
   {
     rewardAuthority: 0,
@@ -913,7 +902,7 @@ export const initializeRewardV2 = instruction(
   },
   struct({
     rewardIndex: u8,
-  })
+  }),
 );
 
 export interface SetRewardEmissionsV2 {
@@ -923,7 +912,7 @@ export interface SetRewardEmissionsV2 {
 
 export const setRewardEmissionsV2 = instruction(
   {
-    d8: "0x72e44820c130a066",
+    d8: '0x72e44820c130a066',
   },
   {
     whirlpool: 0,
@@ -933,7 +922,7 @@ export const setRewardEmissionsV2 = instruction(
   struct({
     rewardIndex: u8,
     emissionsPerSecondX64: u128,
-  })
+  }),
 );
 
 export interface SwapV2 {
@@ -947,7 +936,7 @@ export interface SwapV2 {
 
 export const swapV2 = instruction(
   {
-    d8: "0x2b04ed0b1ac91e62",
+    d8: '0x2b04ed0b1ac91e62',
   },
   {
     tokenProgramA: 0,
@@ -973,7 +962,7 @@ export const swapV2 = instruction(
     amountSpecifiedIsInput: bool,
     aToB: bool,
     remainingAccountsInfo: option(RemainingAccountsInfo),
-  })
+  }),
 );
 
 export interface TwoHopSwapV2 {
@@ -989,7 +978,7 @@ export interface TwoHopSwapV2 {
 
 export const twoHopSwapV2 = instruction(
   {
-    d8: "0xba8fd11dfe02c275",
+    d8: '0xba8fd11dfe02c275',
   },
   {
     whirlpoolOne: 0,
@@ -1026,14 +1015,14 @@ export const twoHopSwapV2 = instruction(
     sqrtPriceLimitOne: u128,
     sqrtPriceLimitTwo: u128,
     remainingAccountsInfo: option(RemainingAccountsInfo),
-  })
+  }),
 );
 
 export type InitializeConfigExtension = undefined;
 
 export const initializeConfigExtension = instruction(
   {
-    d8: "0x370935097239d134",
+    d8: '0x370935097239d134',
   },
   {
     config: 0,
@@ -1042,14 +1031,14 @@ export const initializeConfigExtension = instruction(
     feeAuthority: 3,
     systemProgram: 4,
   },
-  unit
+  unit,
 );
 
 export type SetConfigExtensionAuthority = undefined;
 
 export const setConfigExtensionAuthority = instruction(
   {
-    d8: "0x2c5ef17418bc3c8f",
+    d8: '0x2c5ef17418bc3c8f',
   },
   {
     whirlpoolsConfig: 0,
@@ -1057,14 +1046,14 @@ export const setConfigExtensionAuthority = instruction(
     configExtensionAuthority: 2,
     newConfigExtensionAuthority: 3,
   },
-  unit
+  unit,
 );
 
 export type SetTokenBadgeAuthority = undefined;
 
 export const setTokenBadgeAuthority = instruction(
   {
-    d8: "0xcfca0420cd4f0db2",
+    d8: '0xcfca0420cd4f0db2',
   },
   {
     whirlpoolsConfig: 0,
@@ -1072,14 +1061,14 @@ export const setTokenBadgeAuthority = instruction(
     configExtensionAuthority: 2,
     newTokenBadgeAuthority: 3,
   },
-  unit
+  unit,
 );
 
 export type InitializeTokenBadge = undefined;
 
 export const initializeTokenBadge = instruction(
   {
-    d8: "0xfd4dcd5f1be059df",
+    d8: '0xfd4dcd5f1be059df',
   },
   {
     whirlpoolsConfig: 0,
@@ -1090,14 +1079,14 @@ export const initializeTokenBadge = instruction(
     funder: 5,
     systemProgram: 6,
   },
-  unit
+  unit,
 );
 
 export type DeleteTokenBadge = undefined;
 
 export const deleteTokenBadge = instruction(
   {
-    d8: "0x35924408127511b9",
+    d8: '0x35924408127511b9',
   },
   {
     whirlpoolsConfig: 0,
@@ -1107,5 +1096,5 @@ export const deleteTokenBadge = instruction(
     tokenBadge: 4,
     receiver: 5,
   },
-  unit
+  unit,
 );

@@ -1,10 +1,6 @@
 import assert from 'node:assert';
 import * as raydiumCpmm from '../../contracts/raydium-cpmm';
-import {
-  getDecodedInnerTransfers,
-  getInstructionBalances,
-  getPostTokenBalance,
-} from '../../utils';
+import { getDecodedInnerTransfers, getInstructionBalances, getPostTokenBalance } from '../../utils';
 import { TokenAmount, Instruction, Block, SolanaSwapCore } from '../../types';
 
 interface Token {
@@ -23,7 +19,7 @@ export abstract class RaydiumCpmmSwapBaseHandler {
   constructor(
     protected instruction: Instruction,
     protected block: Block,
-    private decodeMethod: 'swapBaseInput' | 'swapBaseOutput'
+    private decodeMethod: 'swapBaseInput' | 'swapBaseOutput',
   ) {}
 
   abstract handleSwap(): SolanaSwapCore;
@@ -37,14 +33,9 @@ export abstract class RaydiumCpmmSwapBaseHandler {
     owner?: string;
   } {
     const { inputToken, outputToken } = this.getTokenData();
-    const swapTransfers = getDecodedInnerTransfers(
-      this.instruction,
-      this.block
-    );
+    const swapTransfers = getDecodedInnerTransfers(this.instruction, this.block);
     if (swapTransfers.length < 2) {
-      throw new Error(
-        'Expected 2 decoded transfers accounting for tokenIn and tokenOut'
-      );
+      throw new Error('Expected 2 decoded transfers accounting for tokenIn and tokenOut');
     }
 
     const [
@@ -106,14 +97,8 @@ export abstract class RaydiumCpmmSwapBaseHandler {
   protected getTokenData(): { inputToken: Token; outputToken: Token } {
     const { inputVault, outputVault } = this.getAccounts();
     const tokenBalances = getInstructionBalances(this.instruction, this.block);
-    const inputVaultTokenBalance = getPostTokenBalance(
-      tokenBalances,
-      inputVault
-    );
-    const outputVaultTokenBalance = getPostTokenBalance(
-      tokenBalances,
-      outputVault
-    );
+    const inputVaultTokenBalance = getPostTokenBalance(tokenBalances, inputVault);
+    const outputVaultTokenBalance = getPostTokenBalance(tokenBalances, outputVault);
 
     return {
       inputToken: {

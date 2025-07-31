@@ -11,9 +11,9 @@ import {
   u64,
   u128,
   unit,
-} from "@subsquid/borsh";
-import { instruction } from "../abi.support";
-import { InitializeRewardParam } from "./types";
+} from '@subsquid/borsh';
+import { instruction } from '../abi.support';
+import { InitializeRewardParam } from './types';
 
 export interface CreateAmmConfig {
   index: number;
@@ -25,7 +25,7 @@ export interface CreateAmmConfig {
 
 export const createAmmConfig = instruction(
   {
-    d8: "0x8934edd4d7756c68",
+    d8: '0x8934edd4d7756c68',
   },
   {
     owner: 0,
@@ -38,7 +38,7 @@ export const createAmmConfig = instruction(
     tradeFeeRate: u32,
     protocolFeeRate: u32,
     fundFeeRate: u32,
-  })
+  }),
 );
 
 export interface UpdateAmmConfig {
@@ -48,7 +48,7 @@ export interface UpdateAmmConfig {
 
 export const updateAmmConfig = instruction(
   {
-    d8: "0x313cae889a1c74c8",
+    d8: '0x313cae889a1c74c8',
   },
   {
     owner: 0,
@@ -57,7 +57,7 @@ export const updateAmmConfig = instruction(
   struct({
     param: u8,
     value: u32,
-  })
+  }),
 );
 
 export interface CreatePool {
@@ -67,7 +67,7 @@ export interface CreatePool {
 
 export const createPool = instruction(
   {
-    d8: "0xe992d18ecf6840bc",
+    d8: '0xe992d18ecf6840bc',
   },
   {
     poolCreator: 0,
@@ -87,7 +87,7 @@ export const createPool = instruction(
   struct({
     sqrtPriceX64: u128,
     openTime: u64,
-  })
+  }),
 );
 
 export interface UpdatePoolStatus {
@@ -96,7 +96,7 @@ export interface UpdatePoolStatus {
 
 export const updatePoolStatus = instruction(
   {
-    d8: "0x82576c062ee0757b",
+    d8: '0x82576c062ee0757b',
   },
   {
     authority: 0,
@@ -104,21 +104,21 @@ export const updatePoolStatus = instruction(
   },
   struct({
     status: u8,
-  })
+  }),
 );
 
 export type CreateOperationAccount = undefined;
 
 export const createOperationAccount = instruction(
   {
-    d8: "0x3f5794216d230868",
+    d8: '0x3f5794216d230868',
   },
   {
     owner: 0,
     operationState: 1,
     systemProgram: 2,
   },
-  unit
+  unit,
 );
 
 export interface UpdateOperationAccount {
@@ -128,7 +128,7 @@ export interface UpdateOperationAccount {
 
 export const updateOperationAccount = instruction(
   {
-    d8: "0x7f467728bce33d07",
+    d8: '0x7f467728bce33d07',
   },
   {
     owner: 0,
@@ -138,7 +138,7 @@ export const updateOperationAccount = instruction(
   struct({
     param: u8,
     keys: array(address),
-  })
+  }),
 );
 
 export interface TransferRewardOwner {
@@ -147,7 +147,7 @@ export interface TransferRewardOwner {
 
 export const transferRewardOwner = instruction(
   {
-    d8: "0x07160c53f22b3079",
+    d8: '0x07160c53f22b3079',
   },
   {
     authority: 0,
@@ -155,7 +155,7 @@ export const transferRewardOwner = instruction(
   },
   struct({
     newOwner: address,
-  })
+  }),
 );
 
 export interface InitializeReward {
@@ -164,7 +164,7 @@ export interface InitializeReward {
 
 export const initializeReward = instruction(
   {
-    d8: "0x5f87c0c4f281e644",
+    d8: '0x5f87c0c4f281e644',
   },
   {
     rewardFunder: 0,
@@ -180,7 +180,7 @@ export const initializeReward = instruction(
   },
   struct({
     param: InitializeRewardParam,
-  })
+  }),
 );
 
 export interface CollectRemainingRewards {
@@ -189,7 +189,7 @@ export interface CollectRemainingRewards {
 
 export const collectRemainingRewards = instruction(
   {
-    d8: "0x12eda6c52210d590",
+    d8: '0x12eda6c52210d590',
   },
   {
     rewardFunder: 0,
@@ -203,19 +203,19 @@ export const collectRemainingRewards = instruction(
   },
   struct({
     rewardIndex: u8,
-  })
+  }),
 );
 
 export type UpdateRewardInfos = undefined;
 
 export const updateRewardInfos = instruction(
   {
-    d8: "0xa3ace0340b9a6adf",
+    d8: '0xa3ace0340b9a6adf',
   },
   {
     poolState: 0,
   },
-  unit
+  unit,
 );
 
 export interface SetRewardParams {
@@ -227,7 +227,7 @@ export interface SetRewardParams {
 
 export const setRewardParams = instruction(
   {
-    d8: "0x7034a74b20c9d389",
+    d8: '0x7034a74b20c9d389',
   },
   {
     authority: 0,
@@ -242,7 +242,7 @@ export const setRewardParams = instruction(
     emissionsPerSecondX64: u128,
     openTime: u64,
     endTime: u64,
-  })
+  }),
 );
 
 export interface CollectProtocolFee {
@@ -252,7 +252,7 @@ export interface CollectProtocolFee {
 
 export const collectProtocolFee = instruction(
   {
-    d8: "0x8888fcddc2427e59",
+    d8: '0x8888fcddc2427e59',
   },
   {
     owner: 0,
@@ -270,7 +270,7 @@ export const collectProtocolFee = instruction(
   struct({
     amount0Requested: u64,
     amount1Requested: u64,
-  })
+  }),
 );
 
 export interface CollectFundFee {
@@ -280,7 +280,7 @@ export interface CollectFundFee {
 
 export const collectFundFee = instruction(
   {
-    d8: "0xa78a4e95dfc2067e",
+    d8: '0xa78a4e95dfc2067e',
   },
   {
     owner: 0,
@@ -298,7 +298,7 @@ export const collectFundFee = instruction(
   struct({
     amount0Requested: u64,
     amount1Requested: u64,
-  })
+  }),
 );
 
 export interface OpenPosition {
@@ -313,7 +313,7 @@ export interface OpenPosition {
 
 export const openPosition = instruction(
   {
-    d8: "0x87802f4d0f98f031",
+    d8: '0x87802f4d0f98f031',
   },
   {
     payer: 0,
@@ -344,7 +344,7 @@ export const openPosition = instruction(
     liquidity: u128,
     amount0Max: u64,
     amount1Max: u64,
-  })
+  }),
 );
 
 export interface OpenPositionV2 {
@@ -361,7 +361,7 @@ export interface OpenPositionV2 {
 
 export const openPositionV2 = instruction(
   {
-    d8: "0x4db84ad67056f1c7",
+    d8: '0x4db84ad67056f1c7',
   },
   {
     payer: 0,
@@ -397,7 +397,7 @@ export const openPositionV2 = instruction(
     amount1Max: u64,
     withMetadata: bool,
     baseFlag: option(bool),
-  })
+  }),
 );
 
 export interface OpenPositionWithToken22Nft {
@@ -414,7 +414,7 @@ export interface OpenPositionWithToken22Nft {
 
 export const openPositionWithToken22Nft = instruction(
   {
-    d8: "0x4dffae527d1dc92e",
+    d8: '0x4dffae527d1dc92e',
   },
   {
     payer: 0,
@@ -448,14 +448,14 @@ export const openPositionWithToken22Nft = instruction(
     amount1Max: u64,
     withMetadata: bool,
     baseFlag: option(bool),
-  })
+  }),
 );
 
 export type ClosePosition = undefined;
 
 export const closePosition = instruction(
   {
-    d8: "0x7b86510031446262",
+    d8: '0x7b86510031446262',
   },
   {
     nftOwner: 0,
@@ -465,7 +465,7 @@ export const closePosition = instruction(
     systemProgram: 4,
     tokenProgram: 5,
   },
-  unit
+  unit,
 );
 
 export interface IncreaseLiquidity {
@@ -476,7 +476,7 @@ export interface IncreaseLiquidity {
 
 export const increaseLiquidity = instruction(
   {
-    d8: "0x2e9cf3760dcdfbb2",
+    d8: '0x2e9cf3760dcdfbb2',
   },
   {
     nftOwner: 0,
@@ -496,7 +496,7 @@ export const increaseLiquidity = instruction(
     liquidity: u128,
     amount0Max: u64,
     amount1Max: u64,
-  })
+  }),
 );
 
 export interface IncreaseLiquidityV2 {
@@ -508,7 +508,7 @@ export interface IncreaseLiquidityV2 {
 
 export const increaseLiquidityV2 = instruction(
   {
-    d8: "0x851d59df45eeb00a",
+    d8: '0x851d59df45eeb00a',
   },
   {
     nftOwner: 0,
@@ -532,7 +532,7 @@ export const increaseLiquidityV2 = instruction(
     amount0Max: u64,
     amount1Max: u64,
     baseFlag: option(bool),
-  })
+  }),
 );
 
 export interface DecreaseLiquidity {
@@ -543,7 +543,7 @@ export interface DecreaseLiquidity {
 
 export const decreaseLiquidity = instruction(
   {
-    d8: "0xa026d06f685b2c01",
+    d8: '0xa026d06f685b2c01',
   },
   {
     nftOwner: 0,
@@ -563,7 +563,7 @@ export const decreaseLiquidity = instruction(
     liquidity: u128,
     amount0Min: u64,
     amount1Min: u64,
-  })
+  }),
 );
 
 export interface DecreaseLiquidityV2 {
@@ -574,7 +574,7 @@ export interface DecreaseLiquidityV2 {
 
 export const decreaseLiquidityV2 = instruction(
   {
-    d8: "0x3a7fbc3e4f52c460",
+    d8: '0x3a7fbc3e4f52c460',
   },
   {
     nftOwner: 0,
@@ -598,7 +598,7 @@ export const decreaseLiquidityV2 = instruction(
     liquidity: u128,
     amount0Min: u64,
     amount1Min: u64,
-  })
+  }),
 );
 
 export interface Swap {
@@ -610,7 +610,7 @@ export interface Swap {
 
 export const swap = instruction(
   {
-    d8: "0xf8c69e91e17587c8",
+    d8: '0xf8c69e91e17587c8',
   },
   {
     payer: 0,
@@ -629,7 +629,7 @@ export const swap = instruction(
     otherAmountThreshold: u64,
     sqrtPriceLimitX64: u128,
     isBaseInput: bool,
-  })
+  }),
 );
 
 export interface SwapV2 {
@@ -641,7 +641,7 @@ export interface SwapV2 {
 
 export const swapV2 = instruction(
   {
-    d8: "0x2b04ed0b1ac91e62",
+    d8: '0x2b04ed0b1ac91e62',
   },
   {
     payer: 0,
@@ -663,7 +663,7 @@ export const swapV2 = instruction(
     otherAmountThreshold: u64,
     sqrtPriceLimitX64: u128,
     isBaseInput: bool,
-  })
+  }),
 );
 
 export interface SwapRouterBaseIn {
@@ -673,7 +673,7 @@ export interface SwapRouterBaseIn {
 
 export const swapRouterBaseIn = instruction(
   {
-    d8: "0x457d73daf5baf2c4",
+    d8: '0x457d73daf5baf2c4',
   },
   {
     payer: 0,
@@ -686,5 +686,5 @@ export const swapRouterBaseIn = instruction(
   struct({
     amountIn: u64,
     amountOutMinimum: u64,
-  })
+  }),
 );

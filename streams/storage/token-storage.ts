@@ -1,18 +1,17 @@
+import _ from 'lodash';
 import { DatabaseSync, StatementSync } from 'node:sqlite';
 import {
   SolanaToken,
   SolanaTokenMetadata,
   SolanaTokenMetadataUpdate,
   SolanaTokenMintData,
-} from './types';
-import _ from 'lodash';
-import { TOKENS } from './utils';
+} from '../svm_swaps/types';
+import { TOKENS } from '../svm_swaps/utils';
 
 export class TokenStorage {
-  private db: DatabaseSync;
   private statements: Record<string, StatementSync>;
-  private tokenByMintAcc: Map<string, SolanaToken>;
-  private tokenByMetadataAcc: Map<string, SolanaToken>;
+  private tokenByMintAcc: Map<string, SolanaToken> = new Map();
+  private tokenByMetadataAcc: Map<string, SolanaToken> = new Map();
 
   private readonly insertKeys: (keyof SolanaToken)[] = [
     'mintAcc',
@@ -25,11 +24,8 @@ export class TokenStorage {
     'createdAtBlock',
     'creationTxHash',
   ];
-  constructor(private readonly dbPath: string) {
-    this.db = new DatabaseSync(this.dbPath);
-    this.db.exec('PRAGMA journal_mode = WAL');
-    this.db.exec('PRAGMA synchronous = NORMAL');
-    this.db.exec(
+  constructor(private readonly db: DatabaseSync) {
+    db.exec(
       `CREATE TABLE IF NOT EXISTS "spl_tokens" (
         mintAcc TEXT NOT NULL,
         decimals INTEGER NOT NULL,
@@ -41,17 +37,17 @@ export class TokenStorage {
         createdAtBlock INTEGER,
         creationTxHash TEXT,
         PRIMARY KEY (mintAcc)
-      )`
+      )`,
     );
     this.statements = {
-      insert: this.db.prepare(
+      insert: db.prepare(
         `INSERT OR IGNORE INTO "spl_tokens" (
             ${this.insertKeys.join(', ')}
         ) VALUES (
             ${this.insertKeys.map((k) => `:${k}`).join(', ')}
-        )`
+        )`,
       ),
-      setMetadata: this.db.prepare(
+      setMetadata: db.prepare(
         `UPDATE "spl_tokens" SET
             metadataAcc=:metadataAcc,
             name=:name,
@@ -59,17 +55,13 @@ export class TokenStorage {
             mutable=:mutable,
             name=:name,
             symbol=:symbol
-        WHERE mintAcc=:mintAcc`
+        WHERE mintAcc=:mintAcc`,
       ),
-      updateName: this.db.prepare(
-        `UPDATE "spl_tokens" SET name=:name WHERE metadataAcc=:metadataAcc`
-      ),
-      updateSymbol: this.db.prepare(`
+      updateName: db.prepare(`UPDATE "spl_tokens" SET name=:name WHERE metadataAcc=:metadataAcc`),
+      updateSymbol: db.prepare(`
         UPDATE "spl_tokens" SET symbol=:symbol WHERE metadataAcc=:metadataAcc
       `),
     };
-    this.tokenByMintAcc = new Map();
-    this.tokenByMetadataAcc = new Map();
     this.addKnownTokensToCache();
   }
 
@@ -112,9 +104,7 @@ export class TokenStorage {
     return token;
   }
 
-  updateTokenCache(
-    updateData: SolanaTokenMetadata | SolanaTokenMetadataUpdate
-  ) {
+  updateTokenCache(updateData: SolanaTokenMetadata | SolanaTokenMetadataUpdate) {
     const current =
       'mintAcc' in updateData
         ? this.tokenByMintAcc.get(updateData.mintAcc)
@@ -132,22 +122,18 @@ export class TokenStorage {
   processBatch(
     inserts: SolanaTokenMintData[],
     metadataAssigns: SolanaTokenMetadata[],
-    metadataUpdates: SolanaTokenMetadataUpdate[]
+    metadataUpdates: SolanaTokenMetadataUpdate[],
   ) {
-    const insertsByMint = new Map<string, SolanaToken>(
-      inserts.map((t) => [t.mintAcc, t])
-    );
+    const insertsByMint = new Map<string, SolanaToken>(inserts.map((t) => [t.mintAcc, t]));
     const enrichmentsByMint = new Map<string, SolanaTokenMetadata>(
-      metadataAssigns.map((t) => [t.mintAcc, t])
+      metadataAssigns.map((t) => [t.mintAcc, t]),
     );
     const enrichmentsByMeta = new Map<string, SolanaTokenMetadata>(
-      metadataAssigns.map((t) => [t.metadataAcc, t])
+      metadataAssigns.map((t) => [t.metadataAcc, t]),
     );
-    const updatesGrouped = Object.entries(
-      _.groupBy(metadataUpdates, (t) => t.metadataAcc)
-    );
+    const updatesGrouped = Object.entries(_.groupBy(metadataUpdates, (t) => t.metadataAcc));
     const updatesByMeta = new Map<string, SolanaTokenMetadataUpdate>(
-      updatesGrouped.map(([metaAcc, updates]) => [metaAcc, _.merge(updates)])
+      updatesGrouped.map(([metaAcc, updates]) => [metaAcc, _.merge(updates)]),
     );
 
     for (const update of updatesByMeta.values()) {
@@ -170,11 +156,9 @@ export class TokenStorage {
       }
     }
 
-    this.db.exec(`BEGIN TRANSACTION`);
     this.insertTokens(Array.from(insertsByMint.values()));
     this.setTokensMetadata(Array.from(enrichmentsByMint.values()));
     this.updateTokensMetadata(Array.from(updatesByMeta.values()));
-    this.db.exec(`COMMIT`);
   }
 
   insertTokens(tokens: SolanaTokenMintData[]) {
@@ -230,7 +214,7 @@ export class TokenStorage {
         ...res,
         [token.mintAcc]: token || undefined,
       }),
-      {}
+      {},
     );
   }
 }

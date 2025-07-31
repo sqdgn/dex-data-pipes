@@ -28,13 +28,5 @@
       "@core/*": ["./core/"]
     }
   },
-  "exclude": [
-    "helm-charts",
-    "app",
-    "node_modules",
-    "ci",
-    "local",
-    "dumps",
-    "deployment"
-  ]
+  "exclude": ["helm-charts", "app", "node_modules", "ci", "local", "dumps", "deployment"]
 }

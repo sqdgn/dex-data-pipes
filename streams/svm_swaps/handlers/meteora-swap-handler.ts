@@ -37,42 +37,36 @@ function decodeMeteoraDammSwapIns(ins: Instruction) {
 }
 
 function validateAccounts(
-  srcTransfer: DecodedInstruction<
-    { source: string; destination: string },
-    unknown
-  >,
-  destTransfer: DecodedInstruction<
-    { source: string; destination: string },
-    unknown
-  >,
+  srcTransfer: DecodedInstruction<{ source: string; destination: string }, unknown>,
+  destTransfer: DecodedInstruction<{ source: string; destination: string }, unknown>,
   userIn: string,
   userOut: string,
   reserveIn: string,
   reserveOut: string,
-  txHash: string
+  txHash: string,
 ) {
   assert(
     srcTransfer.accounts.source === userIn,
-    `Invalid Meteora DLMM input account. Tx: ${txHash}`
+    `Invalid Meteora DLMM input account. Tx: ${txHash}`,
   );
   assert(
     destTransfer.accounts.destination === userOut,
-    `Invalid Meteora DLMM output account. Tx: ${txHash}`
+    `Invalid Meteora DLMM output account. Tx: ${txHash}`,
   );
   assert(
     srcTransfer.accounts.destination === reserveIn,
-    `Invalid Meteora DLMM input reserve account. Tx: ${txHash}`
+    `Invalid Meteora DLMM input reserve account. Tx: ${txHash}`,
   );
   assert(
     destTransfer.accounts.source === reserveOut,
-    `Invalid Meteora DLMM output reserve account. Tx: ${txHash}`
+    `Invalid Meteora DLMM output reserve account. Tx: ${txHash}`,
   );
 }
 
 export function handleMeteoraDamm(
   logger: Logger,
   ins: Instruction,
-  block: Block
+  block: Block,
 ): SolanaSwapCore | null {
   /**
    * Meteora DAMM has two transfers on the second level and also other tokenProgram instructions
@@ -103,13 +97,8 @@ export function handleMeteoraDamm(
   const tokenIn = getPostTokenBalance(tokenBalances, src.accounts.destination);
   const tokenOut = getPostTokenBalance(tokenBalances, dest.accounts.source);
 
-  const {
-    pool,
-    userSourceToken,
-    userDestinationToken,
-    aTokenVault,
-    bTokenVault,
-  } = decodeMeteoraDammSwapIns(ins).accounts;
+  const { pool, userSourceToken, userDestinationToken, aTokenVault, bTokenVault } =
+    decodeMeteoraDammSwapIns(ins).accounts;
 
   const tokenAIsInput = src.accounts.destination === aTokenVault;
   const reserveInAcc = tokenAIsInput ? aTokenVault : bTokenVault;
@@ -123,17 +112,11 @@ export function handleMeteoraDamm(
     userDestinationToken,
     reserveInAcc,
     reserveOutAcc,
-    getTransactionHash(ins, block)
+    getTransactionHash(ins, block),
   );
 
-  const { preAmount: reserveInAmount } = getPreTokenBalance(
-    tokenBalances,
-    reserveInAcc
-  );
-  const { preAmount: reserveOutAmount } = getPreTokenBalance(
-    tokenBalances,
-    reserveOutAcc
-  );
+  const { preAmount: reserveInAmount } = getPreTokenBalance(tokenBalances, reserveInAcc);
+  const { preAmount: reserveOutAmount } = getPreTokenBalance(tokenBalances, reserveOutAcc);
 
   return {
     type: 'meteora_damm',
@@ -155,15 +138,10 @@ export function handleMeteoraDamm(
   };
 }
 
-export function handleMeteoraDlmm(
-  ins: Instruction,
-  block: Block
-): SolanaSwapCore {
-  const transfers = getInnerTransfersByLevel(ins, block.instructions, 1).map(
-    (t) => {
-      return tokenProgram.instructions.transferChecked.decode(t);
-    }
-  );
+export function handleMeteoraDlmm(ins: Instruction, block: Block): SolanaSwapCore {
+  const transfers = getInnerTransfersByLevel(ins, block.instructions, 1).map((t) => {
+    return tokenProgram.instructions.transferChecked.decode(t);
+  });
 
   // DLMM could have internal transfers, the last two transfers are final src and dest
   // TODO if there are more than 2 transfers, is the first one fee?
@@ -195,17 +173,11 @@ export function handleMeteoraDlmm(
     userTokenOut,
     reserveInAcc,
     reserveOutAcc,
-    getTransactionHash(ins, block)
+    getTransactionHash(ins, block),
   );
 
-  const { preAmount: reserveInAmount } = getPreTokenBalance(
-    tokenBalances,
-    reserveInAcc
-  );
-  const { preAmount: reserveOutAmount } = getPreTokenBalance(
-    tokenBalances,
-    reserveOutAcc
-  );
+  const { preAmount: reserveInAmount } = getPreTokenBalance(tokenBalances, reserveInAcc);
+  const { preAmount: reserveOutAmount } = getPreTokenBalance(tokenBalances, reserveOutAcc);
 
   return {
     type: 'meteora_dlmm',

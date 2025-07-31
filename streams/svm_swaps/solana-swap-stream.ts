@@ -1,23 +1,16 @@
 import { PortalAbstractStream } from '@sqd-pipes/core';
 import { getInstructionDescriptor } from '@subsquid/solana-stream';
-import {
-  getTransaction,
-  getTransactionAccount,
-  getTransactionHash,
-  timeIt,
-} from './utils';
+import { getTransaction, getTransactionAccount, getTransactionHash, timeIt } from './utils';
 import * as meteoraDamm from './contracts/meteora-damm';
 import * as meteoraDlmm from './contracts/meteora-dlmm';
 import * as whirlpool from './contracts/orca-whirlpool';
 import * as raydiumClmm from './contracts/raydium-clmm';
 import * as raydiumAmm from './contracts/raydium-cpmm';
+import * as raydiumLaunchlab from './contracts/raydium-lanuchlab';
 import * as metaplex from './contracts/metaplex';
 import * as token from './contracts/token-program';
 import * as token2022 from './contracts/token-2022-program';
-import {
-  handleMeteoraDamm,
-  handleMeteoraDlmm,
-} from './handlers/meteora-swap-handler';
+import { handleMeteoraDamm, handleMeteoraDlmm } from './handlers/meteora-swap-handler';
 import { handleWhirlpool } from './handlers/orca-swap-handler';
 import { handleRaydiumAmm } from './handlers/raydium-amm-swap-handler';
 import { handleRaydiumClmm } from './handlers/raydium-clmm-swap-handler';
@@ -41,13 +34,15 @@ import {
   handleInitializeMint,
   isInitializeMintInstruction,
 } from './handlers/initialize-mint-handler';
-import { TokenStorage } from './token-storage';
+import * as raydiumLaunchLabHandler from './handlers/raydium-lanuchlab-handler';
+import { MetadataStorage } from '../storage/metadata-storage';
 
 type Args = {
   // Path to a database where tokens metadata will be saved
   dbPath: string;
-  // Optional: If true, only the tokens will be processed (swaps will be ignored)
-  onlyTokens?: boolean;
+  // Optional: If true, only the metadata (tokens, pool configs etc.) will be processed
+  // and swaps will be ignored.
+  onlyMeta?: boolean;
   // Optional: Limit indexing to specific tokens
   tokens?: string[];
   // Optional: Limit indexing to specific AMMs
@@ -92,15 +87,13 @@ export const swapStreamFieldsSelection = {
 };
 
 export type SwapStreamBlock = PartialBlock<typeof swapStreamFieldsSelection>;
-export type SwapStreamInstruction = PartialInstruction<
-  typeof swapStreamFieldsSelection
->;
+export type SwapStreamInstruction = PartialInstruction<typeof swapStreamFieldsSelection>;
 
 export class SolanaSwapsStream extends PortalAbstractStream<SolanaSwap, Args> {
-  tokenStorage: TokenStorage;
+  storage: MetadataStorage;
 
   initialize() {
-    this.tokenStorage = new TokenStorage(this.options.args.dbPath);
+    this.storage = new MetadataStorage(this.options.args.dbPath);
   }
 
   processTokenInstructions(blocks: SwapStreamBlock[]) {
@@ -139,18 +132,33 @@ export class SolanaSwapsStream extends PortalAbstractStream<SolanaSwap, Args> {
     timeIt(
       this.logger,
       'Processing tokens batch',
-      () =>
-        this.tokenStorage.processBatch(
-          tokens,
-          tokensMetadata,
-          tokenMetadataUpdates
-        ),
+      () => this.storage.tokens.processBatch(tokens, tokensMetadata, tokenMetadataUpdates),
       {
         tokens: tokens.length,
         tokensMetadata: tokensMetadata.length,
         tokenMetadataUpdates: tokenMetadataUpdates.length,
-      }
+      },
     );
+  }
+
+  processConfigInstructions(blocks: SwapStreamBlock[]) {
+    for (const block of blocks) {
+      if (!block.instructions) {
+        continue;
+      }
+      for (const ins of block.instructions) {
+        if (ins.programId === raydiumLaunchlab.programId) {
+          const d8 = getInstructionDescriptor(ins);
+          switch (d8) {
+            case raydiumLaunchlab.instructions.createConfig.d8: {
+              const config = raydiumLaunchLabHandler.handleCreateGlobalConfig(ins);
+              this.storage.launchLabConfig.insertConfig(config);
+              break;
+            }
+          }
+        }
+      }
+    }
   }
 
   processSwapInstructions(blocks: SwapStreamBlock[]) {
@@ -167,14 +175,11 @@ export class SolanaSwapsStream extends PortalAbstractStream<SolanaSwap, Args> {
 
         // FIXME: Defi Tuna instructions have multiple swaps and for some reason
         // we're not being able to decode innner instructions properly.
-        if (accountKeys.includes('tuna4uSQZncNeeiAMKbstuxA9CUkHH6HmC64wgmnogD'))
-          continue;
+        if (accountKeys.includes('tuna4uSQZncNeeiAMKbstuxA9CUkHH6HmC64wgmnogD')) continue;
 
         switch (ins.programId) {
           case whirlpool.programId:
-            if (
-              whirlpool.instructions.swap.d8 === getInstructionDescriptor(ins)
-            ) {
+            if (whirlpool.instructions.swap.d8 === getInstructionDescriptor(ins)) {
               swap = handleWhirlpool(ins, block);
               break;
             }
@@ -212,14 +217,16 @@ export class SolanaSwapsStream extends PortalAbstractStream<SolanaSwap, Args> {
                 break;
             }
             break;
+          case raydiumLaunchlab.programId:
+            if (raydiumLaunchLabHandler.isSwapInstruction(ins)) {
+              swap = raydiumLaunchLabHandler.handleSwap(ins, block, this.storage.launchLabConfig);
+            }
+            break;
         }
 
         if (!swap) continue;
 
-        if (
-          args?.tokens &&
-          !this.isPairAllowed(swap.input.mintAcc, swap.output.mintAcc)
-        ) {
+        if (args?.tokens && !this.isPairAllowed(swap.input.mintAcc, swap.output.mintAcc)) {
           continue;
         }
 
@@ -227,11 +234,11 @@ export class SolanaSwapsStream extends PortalAbstractStream<SolanaSwap, Args> {
 
         const inputToken = {
           ...swap.input,
-          ...(this.tokenStorage.getToken(swap.input.mintAcc) || {}),
+          ...(this.storage.tokens.getToken(swap.input.mintAcc) || {}),
         };
         const outputToken = {
           ...swap.output,
-          ...(this.tokenStorage.getToken(swap.output.mintAcc) || {}),
+          ...(this.storage.tokens.getToken(swap.output.mintAcc) || {}),
         };
 
         swaps.push({
@@ -271,6 +278,7 @@ export class SolanaSwapsStream extends PortalAbstractStream<SolanaSwap, Args> {
       'meteora_dlmm',
       'raydium_clmm',
       'raydium_amm',
+      'raydium_launchlab',
     ];
 
     return {
@@ -280,10 +288,7 @@ export class SolanaSwapsStream extends PortalAbstractStream<SolanaSwap, Args> {
         // Token mint initialization instructions
         {
           programId: [token.programId],
-          d1: [
-            token.instructions.initializeMint.d1,
-            token.instructions.initializeMint2.d1,
-          ],
+          d1: [token.instructions.initializeMint.d1, token.instructions.initializeMint2.d1],
           isCommitted: true, // where successfully committed
           innerInstructions: true, // inner instructions
           transaction: true, // transaction, that executed the given instruction
@@ -291,10 +296,7 @@ export class SolanaSwapsStream extends PortalAbstractStream<SolanaSwap, Args> {
         },
         {
           programId: [token2022.programId],
-          d1: [
-            token2022.instructions.initializeMint.d1,
-            token2022.instructions.initializeMint2.d1,
-          ],
+          d1: [token2022.instructions.initializeMint.d1, token2022.instructions.initializeMint2.d1],
           isCommitted: true, // where successfully committed
           innerInstructions: true, // inner instructions
           transaction: true, // transaction, that executed the given instruction
@@ -315,8 +317,21 @@ export class SolanaSwapsStream extends PortalAbstractStream<SolanaSwap, Args> {
           transaction: true, // transaction, that executed the given instruction
           transactionTokenBalances: true, // all token balance records of executed transaction
         },
+        ...(types.includes('raydium_launchlab')
+          ? [
+              // Raydium LaunchLab create config instructions
+              {
+                programId: [raydiumLaunchlab.programId],
+                d8: [raydiumLaunchlab.instructions.createConfig.d8],
+                isCommitted: true,
+                innerInstructions: true,
+                transaction: true,
+                transactionTokenBalances: true,
+              },
+            ]
+          : []),
         // Swap instructions for various Solana AMMs
-        ...(args.onlyTokens
+        ...(args.onlyMeta
           ? []
           : types.map((type) => {
               switch (type) {
@@ -380,6 +395,21 @@ export class SolanaSwapsStream extends PortalAbstractStream<SolanaSwap, Args> {
                     transactionTokenBalances: true,
                     logs: true,
                   };
+                case 'raydium_launchlab':
+                  return {
+                    programId: [raydiumLaunchlab.programId],
+                    d8: [
+                      raydiumLaunchlab.instructions.buyExactIn.d8,
+                      raydiumLaunchlab.instructions.buyExactOut.d8,
+                      raydiumLaunchlab.instructions.sellExactIn.d8,
+                      raydiumLaunchlab.instructions.sellExactOut.d8,
+                    ],
+                    isCommitted: true,
+                    innerInstructions: true,
+                    transaction: true,
+                    transactionTokenBalances: true,
+                    logs: true,
+                  };
               }
             })),
       ],
@@ -404,22 +434,28 @@ export class SolanaSwapsStream extends PortalAbstractStream<SolanaSwap, Args> {
     return source.pipeThrough(
       new TransformStream({
         transform: ({ blocks }, controller) => {
-          // Process token-related instructions first
+          this.storage.beginTransaction();
+
+          // Process metadata instructions first
           // to ensure we have the necessary context
           // before processing swaps
           timeIt(this.logger, 'Processing token instructions', () => {
             this.processTokenInstructions(blocks);
           });
 
-          if (this.options.args.onlyTokens) {
-            // If onlyTokens is true - just ack the batch and return
+          this.processConfigInstructions(blocks);
+
+          this.storage.commit();
+
+          if (this.options.args.onlyMeta) {
+            // If onlyMeta is true - just ack the batch and return
             this.ack();
             return;
           }
 
           // Process swaps
           const swaps = timeIt(this.logger, 'Processing swaps', () =>
-            this.processSwapInstructions(blocks)
+            this.processSwapInstructions(blocks),
           );
 
           if (!swaps.length) {
@@ -430,7 +466,7 @@ export class SolanaSwapsStream extends PortalAbstractStream<SolanaSwap, Args> {
 
           controller.enqueue(swaps);
         },
-      })
+      }),
     );
   }
 }
