@@ -47,6 +47,18 @@ CREATE TABLE IF NOT EXISTS swaps_raw
     token_a_decimals    UInt8,
     token_b_decimals    UInt8,
     a_b_swapped         Bool,   -- if true then originally token_a was token_b in a pool and swapped for convenience
+    -- trader stats
+    token_a_balance     Float64,
+    token_b_balance     Float64,
+    token_a_profit_usdc Float64,
+    token_b_profit_usdc Float64,
+    token_a_cost_usdc   Float64,
+    token_b_cost_usdc   Float64,
+    token_a_wins        UInt32,
+    token_b_wins        UInt32,
+    token_a_loses       UInt32,
+    token_b_loses       UInt32,
+    -- end trader stats
     sign                Int8
 ) ENGINE = CollapsingMergeTree(sign)
       PARTITION BY toYYYYMM(timestamp) -- DATA WILL BE SPLIT BY MONTH
@@ -96,6 +108,41 @@ CREATE TABLE IF NOT EXISTS swaps_raw_pool_gr
 CREATE MATERIALIZED VIEW IF NOT EXISTS swaps_raw_pool_gr_mv TO swaps_raw_pool_gr
 AS
 SELECT * FROM swaps_raw;
+
+-- ############################################################################################################
+CREATE TABLE IF NOT EXISTS swaps_raw_account_gr
+(
+    timestamp           DateTime CODEC (DoubleDelta, ZSTD),
+    account            String,
+    token_a            String,
+    token_b            String,
+    amount_a           Float64,
+    amount_b           Float64,
+    price_token_a_usdc Float64,
+    price_token_b_usdc Float64,
+    transaction_index  UInt16,
+    log_index         UInt16,
+    sign              Int8
+) ENGINE = CollapsingMergeTree(sign)
+  PARTITION BY toYYYYMM(timestamp)
+  ORDER BY (account, timestamp, transaction_index, log_index);
+
+CREATE MATERIALIZED VIEW IF NOT EXISTS swaps_raw_account_gr_mv TO swaps_raw_account_gr
+AS
+SELECT
+    timestamp,
+    account,
+    token_a,
+    token_b,
+    amount_a,
+    amount_b,
+    price_token_a_usdc,
+    price_token_b_usdc,
+    transaction_index,
+    log_index,
+    sign
+FROM swaps_raw
+WHERE price_token_a_usdc > 0 AND price_token_b_usdc > 0;
 
 -- ############################################################################################################
 
@@ -214,4 +261,81 @@ FROM swaps_raw;
     FROM swaps_raw_pool_gr
     WHERE pool_address = lower('0xa6c7fbd1b4c71673dfdadfaa9d17f14833d3245e') 
         AND `timestamp` >= NOW() - INTERVAL 24 HOUR
+*/
+
+
+-- =================================================================================
+-- Traders stats
+
+CREATE VIEW IF NOT EXISTS trader_token_stats AS
+	SELECT
+		s1.account                          AS account,
+		s1.token_a                          AS token,
+		countIf(amount_a > 0)				AS sells,
+		countIf(amount_a < 0)				AS buys,
+		sumIf(amount_a, amount_a > 0)		AS sold_amount_token,
+		sumIf(ABS(amount_a), amount_a < 0)  AS bought_amount_token,
+		(sold_amount_token / bought_amount_token)      AS sold_to_bought_ratio,
+		max(s1.token_a_wins)               AS tx_wins,
+		max(s1.token_a_loses)              AS tx_loses,
+		sum(s1.token_a_profit_usdc)        AS total_profit_usdc
+	FROM swaps_raw s1
+	WHERE
+		(s1.timestamp BETWEEN {start_date:DateTime} AND {end_date:DateTime})
+		AND price_token_a_usdc != 0 AND price_token_b_usdc != 0
+	GROUP BY account, token;
+
+
+CREATE VIEW IF NOT EXISTS top_traders
+AS
+  WITH
+    token_wins_loses AS (
+      SELECT
+        tts.account                         AS account,
+        sum(tts.tx_wins)                   AS tx_wins,
+        sum(tts.tx_loses)                  AS tx_loses,
+        countIf(tts.total_profit_usdc > 0) AS token_wins,
+        countIf(tts.total_profit_usdc < 0) AS token_loses
+      FROM trader_token_stats(
+        start_date={start_date:DateTime},
+        end_date={end_date:DateTime}
+      ) tts
+      GROUP BY tts.account
+    )
+SELECT account, 
+	count() AS tx_count,
+	avg(ABS(amount_a)*price_token_a_usdc) AS avg_trade_usdc,
+	countIf(amount_a < 0) AS token_a_buys,
+	countIf(amount_a > 0) AS token_a_sells,
+	count(distinct token_a) AS distinct_token_a,
+    sum(token_a_cost_usdc) AS total_cost_usdc,
+    sum(token_a_profit_usdc) AS total_profit_usdc,
+    sum(token_a_wins) AS tx_wins,
+    sum(token_a_loses) AS tx_loses,
+    any(twl.token_wins) AS token_wins,
+    any(twl.token_loses) AS token_loses,
+    (tx_wins / (tx_wins + tx_loses)) AS tx_win_ratio,
+    (token_wins / (token_wins + token_loses)) AS token_win_ratio,
+    (total_profit_usdc / total_cost_usdc) * 100 AS pnl_percent,
+	min(timestamp) AS first_tx,
+	max(timestamp) AS last_tx,
+	tx_count / dateDiff('hour', first_tx, last_tx) AS tx_per_hour
+FROM base_swaps.swaps_raw s
+JOIN
+    token_wins_loses AS twl ON twl.account = s.account
+WHERE (timestamp BETWEEN {start_date:DateTime} AND {end_date:DateTime})
+	AND price_token_a_usdc != 0 AND price_token_b_usdc != 0	-- important, don't consider tokens that have no price defined
+GROUP BY account
+ORDER BY pnl_percent DESC;
+
+/*
+
+-- how to select: 
+
+SELECT *
+FROM top_traders(
+		start_date=NOW()-INTERVAL 1 YEAR ,
+        end_date=NOW())
+WHERE account = '0x8359870917b063fe2ee9aaec5af0ff1ea6caa149'
+
 */

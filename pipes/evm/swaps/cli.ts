@@ -90,6 +90,18 @@ async function main() {
           pool_tick: s.pool.tick,
           timestamp: toUnixTime(s.timestamp),
           a_b_swapped: s.a_b_swapped,
+          // trader stats
+          token_a_balance: s.token_a_balance,
+          token_b_balance: s.token_b_balance,
+          token_a_profit_usdc: s.token_a_profit_usdc,
+          token_b_profit_usdc: s.token_b_profit_usdc,
+          token_a_cost_usdc: s.token_a_cost_usdc,
+          token_b_cost_usdc: s.token_b_cost_usdc,
+          token_a_wins: s.token_a_wins,
+          token_b_wins: s.token_b_wins,
+          token_a_loses: s.token_a_loses,
+          token_b_loses: s.token_b_loses,
+          // end trader stats
           sign: 1,
         };
         return obj;
