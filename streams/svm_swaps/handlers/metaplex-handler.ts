@@ -1,9 +1,5 @@
 import * as metaplex from '../contracts/metaplex';
-import {
-  Instruction,
-  SolanaTokenMetadata,
-  SolanaTokenMetadataUpdate,
-} from '../types';
+import { Instruction, SolanaTokenMetadata, SolanaTokenMetadataUpdate } from '../types';
 import { getInstructionD1 } from '../utils';
 
 export const createMetadataInstructions = [
@@ -20,8 +16,7 @@ export const updateMetadataInstructions = [
 export const isCreateMetadataInstruction = (ins: Instruction): boolean => {
   const desc = getInstructionD1(ins);
   return (
-    ins.programId === metaplex.programId &&
-    createMetadataInstructions.some((i) => i.d1 === desc)
+    ins.programId === metaplex.programId && createMetadataInstructions.some((i) => i.d1 === desc)
   );
 };
 
@@ -91,9 +86,7 @@ export function handleCreateMetadata(ins: Instruction): SolanaTokenMetadata {
   };
 }
 
-export function handleUpdateMetadata(
-  ins: Instruction
-): SolanaTokenMetadataUpdate {
+export function handleUpdateMetadata(ins: Instruction): SolanaTokenMetadataUpdate {
   const md = decodeUpdateMetadataIns(ins);
   return {
     metadataAcc: md.accounts.metadata,

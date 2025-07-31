@@ -48,10 +48,7 @@
         "noUnsafeDeclarationMerging": "error"
       }
     },
-    "ignore": [
-      "dist/*",
-      "**/*.d.ts"
-    ]
+    "ignore": ["dist/*", "**/*.d.ts"]
   },
   "javascript": {
     "parser": {
@@ -63,12 +60,7 @@
   },
   "overrides": [
     {
-      "include": [
-        "*.ts",
-        "*.tsx",
-        "*.mts",
-        "*.cts"
-      ],
+      "include": ["*.ts", "*.tsx", "*.mts", "*.cts"],
       "linter": {
         "rules": {
           "correctness": {

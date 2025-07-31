@@ -48,10 +48,7 @@ function decodeInitializeMint(ins: Instruction) {
   throw new Error('Unrecognized instruction for initializing mint');
 }
 
-export function handleInitializeMint(
-  block: Block,
-  ins: Instruction
-): SolanaTokenMintData {
+export function handleInitializeMint(block: Block, ins: Instruction): SolanaTokenMintData {
   const md = decodeInitializeMint(ins);
   return {
     mintAcc: md.accounts.mint,

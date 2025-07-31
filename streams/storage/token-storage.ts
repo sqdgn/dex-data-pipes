@@ -37,7 +37,7 @@ export class TokenStorage {
         createdAtBlock INTEGER,
         creationTxHash TEXT,
         PRIMARY KEY (mintAcc)
-      )`
+      )`,
     );
     this.statements = {
       insert: db.prepare(
@@ -45,7 +45,7 @@ export class TokenStorage {
             ${this.insertKeys.join(', ')}
         ) VALUES (
             ${this.insertKeys.map((k) => `:${k}`).join(', ')}
-        )`
+        )`,
       ),
       setMetadata: db.prepare(
         `UPDATE "spl_tokens" SET
@@ -55,11 +55,9 @@ export class TokenStorage {
             mutable=:mutable,
             name=:name,
             symbol=:symbol
-        WHERE mintAcc=:mintAcc`
+        WHERE mintAcc=:mintAcc`,
       ),
-      updateName: db.prepare(
-        `UPDATE "spl_tokens" SET name=:name WHERE metadataAcc=:metadataAcc`
-      ),
+      updateName: db.prepare(`UPDATE "spl_tokens" SET name=:name WHERE metadataAcc=:metadataAcc`),
       updateSymbol: db.prepare(`
         UPDATE "spl_tokens" SET symbol=:symbol WHERE metadataAcc=:metadataAcc
       `),
@@ -106,9 +104,7 @@ export class TokenStorage {
     return token;
   }
 
-  updateTokenCache(
-    updateData: SolanaTokenMetadata | SolanaTokenMetadataUpdate
-  ) {
+  updateTokenCache(updateData: SolanaTokenMetadata | SolanaTokenMetadataUpdate) {
     const current =
       'mintAcc' in updateData
         ? this.tokenByMintAcc.get(updateData.mintAcc)
@@ -126,22 +122,18 @@ export class TokenStorage {
   processBatch(
     inserts: SolanaTokenMintData[],
     metadataAssigns: SolanaTokenMetadata[],
-    metadataUpdates: SolanaTokenMetadataUpdate[]
+    metadataUpdates: SolanaTokenMetadataUpdate[],
   ) {
-    const insertsByMint = new Map<string, SolanaToken>(
-      inserts.map((t) => [t.mintAcc, t])
-    );
+    const insertsByMint = new Map<string, SolanaToken>(inserts.map((t) => [t.mintAcc, t]));
     const enrichmentsByMint = new Map<string, SolanaTokenMetadata>(
-      metadataAssigns.map((t) => [t.mintAcc, t])
+      metadataAssigns.map((t) => [t.mintAcc, t]),
     );
     const enrichmentsByMeta = new Map<string, SolanaTokenMetadata>(
-      metadataAssigns.map((t) => [t.metadataAcc, t])
+      metadataAssigns.map((t) => [t.metadataAcc, t]),
     );
-    const updatesGrouped = Object.entries(
-      _.groupBy(metadataUpdates, (t) => t.metadataAcc)
-    );
+    const updatesGrouped = Object.entries(_.groupBy(metadataUpdates, (t) => t.metadataAcc));
     const updatesByMeta = new Map<string, SolanaTokenMetadataUpdate>(
-      updatesGrouped.map(([metaAcc, updates]) => [metaAcc, _.merge(updates)])
+      updatesGrouped.map(([metaAcc, updates]) => [metaAcc, _.merge(updates)]),
     );
 
     for (const update of updatesByMeta.values()) {
@@ -222,7 +214,7 @@ export class TokenStorage {
         ...res,
         [token.mintAcc]: token || undefined,
       }),
-      {}
+      {},
     );
   }
 }

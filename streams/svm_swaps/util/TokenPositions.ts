@@ -40,15 +40,9 @@ export class TokenPositions {
   public async load(swap: DbSwap, token: string) {
     const thisToken = swap.token_a === token ? 'a' : 'b';
     if (swap[`amount_${thisToken}`] > 0) {
-      this.entry(
-        swap[`amount_${thisToken}`],
-        swap[`token_${thisToken}_usdc_price`]
-      );
+      this.entry(swap[`amount_${thisToken}`], swap[`token_${thisToken}_usdc_price`]);
     } else {
-      this.exit(
-        Math.abs(swap[`amount_${thisToken}`]),
-        swap[`token_${thisToken}_usdc_price`]
-      );
+      this.exit(Math.abs(swap[`amount_${thisToken}`]), swap[`token_${thisToken}_usdc_price`]);
     }
     return this;
   }
@@ -85,15 +79,9 @@ export class TokenPositions {
     let totalRealizedAmount = 0;
     let totalEntryCostUsdc = 0;
     let totalProfitUsdc = 0;
-    while (
-      !this.closeTo(totalRealizedAmount, amount) &&
-      this.positions.length
-    ) {
+    while (!this.closeTo(totalRealizedAmount, amount) && this.positions.length) {
       const position = this.positions[0];
-      const realizedAmount = Math.min(
-        amount - totalRealizedAmount,
-        position.amount
-      );
+      const realizedAmount = Math.min(amount - totalRealizedAmount, position.amount);
       const entryCost = realizedAmount * position.price;
       const realizedPnL = realizedAmount * price - entryCost;
       position.realizedPnL += realizedPnL;

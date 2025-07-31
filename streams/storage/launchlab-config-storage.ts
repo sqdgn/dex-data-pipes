@@ -14,14 +14,14 @@ export class LaunchLabConfigStorage {
         account TEXT NOT NULL,
         curveType INTEGER NOT NULL,
         PRIMARY KEY (account)
-      )`
+      )`,
     );
     this.statements = {
       insert: db.prepare(
         `INSERT OR IGNORE INTO "${this.table}"
         (account, curveType)
         VALUES
-        (:account, :curveType)`
+        (:account, :curveType)`,
       ),
     };
   }
@@ -32,9 +32,7 @@ export class LaunchLabConfigStorage {
     }
     const config = this.configByAcc.get(account);
     if (!config) {
-      throw new Error(
-        `Raydium LaunchLab config not found by address: ${account}!`
-      );
+      throw new Error(`Raydium LaunchLab config not found by address: ${account}!`);
     }
     return config;
   }

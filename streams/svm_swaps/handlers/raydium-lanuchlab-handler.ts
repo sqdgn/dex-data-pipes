@@ -10,13 +10,7 @@ import {
   getTransactionHash,
   validateSwapAccounts,
 } from '../utils';
-import {
-  Block,
-  Instruction,
-  LaunchLabConfig,
-  LaunchLabCurveType,
-  SolanaSwapCore,
-} from '../types';
+import { Block, Instruction, LaunchLabConfig, LaunchLabCurveType, SolanaSwapCore } from '../types';
 import { TradeEvent } from '../contracts/raydium-lanuchlab/types';
 import { LaunchLabConfigStorage } from '../../storage/launchlab-config-storage';
 
@@ -42,18 +36,11 @@ function getSwapEvent(ins: Instruction, block: Block): TradeEvent {
   const innerInstructions = getInnerInstructions(ins, block.instructions);
   for (const inner of innerInstructions) {
     if (getInstructionDescriptor(inner) === '0xe445a52e51cb9a1d') {
-      const hex = Buffer.from(
-        (inner[DATA_SYM] as Uint8Array).slice(8)
-      ).toString('hex');
+      const hex = Buffer.from((inner[DATA_SYM] as Uint8Array).slice(8)).toString('hex');
       return raydiumLaunchlab.events.TradeEvent.decode({ msg: `0x${hex}` });
     }
   }
-  throw new Error(
-    `${DEX_NAME}: TradeEvent not found. Tx hash: ${getTransactionHash(
-      ins,
-      block
-    )}`
-  );
+  throw new Error(`${DEX_NAME}: TradeEvent not found. Tx hash: ${getTransactionHash(ins, block)}`);
 }
 
 function isBuyInstruction(ins: Instruction) {
@@ -79,7 +66,7 @@ export function isSwapInstruction(ins: Instruction) {
 export function handleSwap(
   ins: Instruction,
   block: Block,
-  configStorage: LaunchLabConfigStorage
+  configStorage: LaunchLabConfigStorage,
 ): SolanaSwapCore {
   const decoded = decodeSwapInstruction(ins);
   const event = getSwapEvent(ins, block);
@@ -96,10 +83,7 @@ export function handleSwap(
   } = decoded.accounts;
   // First 2 transfers should be in and out, the next ones can be fees etc.
   // Example: 2ngyETx33vv9h2NSwHcupxjiadMZ9ZQgiTrVQrPYM1mCK3q4JnLLEqbFfBPaqP5hVXopM8tzk3i9k5ePw6BVn8pa
-  const [transferIn, transferOut] = getDecodedInnerTransfers(ins, block).slice(
-    0,
-    2
-  );
+  const [transferIn, transferOut] = getDecodedInnerTransfers(ins, block).slice(0, 2);
   const isBuy = isBuyInstruction(ins);
   const tokenInMintAcc = isBuy ? quoteTokenMint : baseTokenMint;
   const tokenOutMintAcc = isBuy ? baseTokenMint : quoteTokenMint;
@@ -115,7 +99,7 @@ export function handleSwap(
     reserveInAcc,
     reserveOutAcc,
     txHash,
-    DEX_NAME
+    DEX_NAME,
   );
 
   const {
@@ -123,10 +107,7 @@ export function handleSwap(
   } = transferIn;
   const swapAcccount = authority || owner;
 
-  assert(
-    swapAcccount,
-    `${DEX_NAME}: Failed to find authority/owner account! Tx: ${txHash}`
-  );
+  assert(swapAcccount, `${DEX_NAME}: Failed to find authority/owner account! Tx: ${txHash}`);
 
   const tokenBalances = getInstructionBalances(ins, block);
   const reserveIn = getPreTokenBalance(tokenBalances, reserveInAcc);
@@ -142,14 +123,9 @@ export function handleSwap(
     event.realBaseBefore,
     event.realQuoteBefore,
     decimalsBase,
-    decimalsQuote
+    decimalsQuote,
   );
-  const actuallyPaidPrice = getActuallyPaidPrice(
-    event,
-    isBuy,
-    decimalsBase,
-    decimalsQuote
-  );
+  const actuallyPaidPrice = getActuallyPaidPrice(event, isBuy, decimalsBase, decimalsQuote);
 
   return {
     account: swapAcccount,
@@ -166,9 +142,7 @@ export function handleSwap(
       reserves: reserveOut.preAmount,
     },
     poolAddress: poolAcc,
-    slippage:
-      (isBuy ? 100 : -100) *
-      actuallyPaidPrice.div(poolPriceBefore).sub(1).toNumber(),
+    slippage: (isBuy ? 100 : -100) * actuallyPaidPrice.div(poolPriceBefore).sub(1).toNumber(),
     type: 'raydium_launchlab',
   };
 }
@@ -187,11 +161,10 @@ function getActuallyPaidPrice(
   event: TradeEvent,
   isBuy: boolean,
   decimalsBase: number,
-  decimalsQuote: number
+  decimalsQuote: number,
 ) {
   if (isBuy) {
-    const amountInSubFees =
-      event.amountIn - event.platformFee - event.protocolFee - event.shareFee;
+    const amountInSubFees = event.amountIn - event.platformFee - event.protocolFee - event.shareFee;
     return new Decimal(amountInSubFees)
       .div(event.amountOut)
       .mul(10 ** (decimalsBase - decimalsQuote));
@@ -212,7 +185,7 @@ function getPoolPrice(
   realBase: bigint,
   realQuote: bigint,
   decimalsBase: number,
-  decimalsQuote: number
+  decimalsQuote: number,
 ): Decimal {
   switch (curveType) {
     case LaunchLabCurveType.ConstantProduct:
@@ -220,9 +193,7 @@ function getPoolPrice(
         .div(virtualBase - realBase)
         .mul(10 ** (decimalsBase - decimalsQuote));
     case LaunchLabCurveType.FixedPrice:
-      return new Decimal(virtualQuote)
-        .div(virtualBase)
-        .mul(10 ** (decimalsBase - decimalsQuote));
+      return new Decimal(virtualQuote).div(virtualBase).mul(10 ** (decimalsBase - decimalsQuote));
     case LaunchLabCurveType.Linear:
       return new Decimal(virtualBase * realBase)
         .div(2n ** 64n)

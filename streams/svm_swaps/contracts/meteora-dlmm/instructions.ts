@@ -1,16 +1,5 @@
-import {
-  struct,
-  i32,
-  u16,
-  unit,
-  i64,
-  array,
-  address,
-  u64,
-  option,
-  bool,
-} from "@subsquid/borsh";
-import { instruction } from "../abi.support";
+import { struct, i32, u16, unit, i64, array, address, u64, option, bool } from '@subsquid/borsh';
+import { instruction } from '../abi.support';
 import {
   InitPermissionPairIx,
   CustomizableParams,
@@ -23,7 +12,7 @@ import {
   FeeParameter,
   InitPresetParametersIx,
   AddLiquiditySingleSidePreciseParameter,
-} from "./types";
+} from './types';
 
 export interface InitializeLbPair {
   activeId: number;
@@ -32,7 +21,7 @@ export interface InitializeLbPair {
 
 export const initializeLbPair = instruction(
   {
-    d8: "0x2d9aedd2dd0fa65c",
+    d8: '0x2d9aedd2dd0fa65c',
   },
   {
     lbPair: 0,
@@ -53,7 +42,7 @@ export const initializeLbPair = instruction(
   struct({
     activeId: i32,
     binStep: u16,
-  })
+  }),
 );
 
 export interface InitializePermissionLbPair {
@@ -62,7 +51,7 @@ export interface InitializePermissionLbPair {
 
 export const initializePermissionLbPair = instruction(
   {
-    d8: "0x6c66d555fb033515",
+    d8: '0x6c66d555fb033515',
   },
   {
     base: 0,
@@ -82,7 +71,7 @@ export const initializePermissionLbPair = instruction(
   },
   struct({
     ixData: InitPermissionPairIx,
-  })
+  }),
 );
 
 export interface InitializeCustomizablePermissionlessLbPair {
@@ -91,7 +80,7 @@ export interface InitializeCustomizablePermissionlessLbPair {
 
 export const initializeCustomizablePermissionlessLbPair = instruction(
   {
-    d8: "0x2e2729876fb7c840",
+    d8: '0x2e2729876fb7c840',
   },
   {
     lbPair: 0,
@@ -111,14 +100,14 @@ export const initializeCustomizablePermissionlessLbPair = instruction(
   },
   struct({
     params: CustomizableParams,
-  })
+  }),
 );
 
 export type InitializeBinArrayBitmapExtension = undefined;
 
 export const initializeBinArrayBitmapExtension = instruction(
   {
-    d8: "0x2f9de2b40cf02147",
+    d8: '0x2f9de2b40cf02147',
   },
   {
     lbPair: 0,
@@ -130,7 +119,7 @@ export const initializeBinArrayBitmapExtension = instruction(
     systemProgram: 3,
     rent: 4,
   },
-  unit
+  unit,
 );
 
 export interface InitializeBinArray {
@@ -139,7 +128,7 @@ export interface InitializeBinArray {
 
 export const initializeBinArray = instruction(
   {
-    d8: "0x235613b94ed44bd3",
+    d8: '0x235613b94ed44bd3',
   },
   {
     lbPair: 0,
@@ -149,7 +138,7 @@ export const initializeBinArray = instruction(
   },
   struct({
     index: i64,
-  })
+  }),
 );
 
 export interface AddLiquidity {
@@ -158,7 +147,7 @@ export interface AddLiquidity {
 
 export const addLiquidity = instruction(
   {
-    d8: "0xb59d59438fb63448",
+    d8: '0xb59d59438fb63448',
   },
   {
     position: 0,
@@ -180,7 +169,7 @@ export const addLiquidity = instruction(
   },
   struct({
     liquidityParameter: LiquidityParameter,
-  })
+  }),
 );
 
 export interface AddLiquidityByWeight {
@@ -189,7 +178,7 @@ export interface AddLiquidityByWeight {
 
 export const addLiquidityByWeight = instruction(
   {
-    d8: "0x1c8cee63e7a21595",
+    d8: '0x1c8cee63e7a21595',
   },
   {
     position: 0,
@@ -211,7 +200,7 @@ export const addLiquidityByWeight = instruction(
   },
   struct({
     liquidityParameter: LiquidityParameterByWeight,
-  })
+  }),
 );
 
 export interface AddLiquidityByStrategy {
@@ -220,7 +209,7 @@ export interface AddLiquidityByStrategy {
 
 export const addLiquidityByStrategy = instruction(
   {
-    d8: "0x0703967f94283dc8",
+    d8: '0x0703967f94283dc8',
   },
   {
     position: 0,
@@ -242,7 +231,7 @@ export const addLiquidityByStrategy = instruction(
   },
   struct({
     liquidityParameter: LiquidityParameterByStrategy,
-  })
+  }),
 );
 
 export interface AddLiquidityByStrategyOneSide {
@@ -251,7 +240,7 @@ export interface AddLiquidityByStrategyOneSide {
 
 export const addLiquidityByStrategyOneSide = instruction(
   {
-    d8: "0x2905eeaf64e106cd",
+    d8: '0x2905eeaf64e106cd',
   },
   {
     position: 0,
@@ -269,7 +258,7 @@ export const addLiquidityByStrategyOneSide = instruction(
   },
   struct({
     liquidityParameter: LiquidityParameterByStrategyOneSide,
-  })
+  }),
 );
 
 export interface AddLiquidityOneSide {
@@ -278,7 +267,7 @@ export interface AddLiquidityOneSide {
 
 export const addLiquidityOneSide = instruction(
   {
-    d8: "0x5e9b6797465fdca5",
+    d8: '0x5e9b6797465fdca5',
   },
   {
     position: 0,
@@ -296,7 +285,7 @@ export const addLiquidityOneSide = instruction(
   },
   struct({
     liquidityParameter: LiquidityOneSideParameter,
-  })
+  }),
 );
 
 export interface RemoveLiquidity {
@@ -305,7 +294,7 @@ export interface RemoveLiquidity {
 
 export const removeLiquidity = instruction(
   {
-    d8: "0x5055d14818ceb16c",
+    d8: '0x5055d14818ceb16c',
   },
   {
     position: 0,
@@ -327,7 +316,7 @@ export const removeLiquidity = instruction(
   },
   struct({
     binLiquidityRemoval: array(BinLiquidityReduction),
-  })
+  }),
 );
 
 export interface InitializePosition {
@@ -337,7 +326,7 @@ export interface InitializePosition {
 
 export const initializePosition = instruction(
   {
-    d8: "0xdbc0ea47bebf6650",
+    d8: '0xdbc0ea47bebf6650',
   },
   {
     payer: 0,
@@ -352,7 +341,7 @@ export const initializePosition = instruction(
   struct({
     lowerBinId: i32,
     width: i32,
-  })
+  }),
 );
 
 export interface InitializePositionPda {
@@ -362,7 +351,7 @@ export interface InitializePositionPda {
 
 export const initializePositionPda = instruction(
   {
-    d8: "0x2e527d92558de499",
+    d8: '0x2e527d92558de499',
   },
   {
     payer: 0,
@@ -381,7 +370,7 @@ export const initializePositionPda = instruction(
   struct({
     lowerBinId: i32,
     width: i32,
-  })
+  }),
 );
 
 export interface InitializePositionByOperator {
@@ -393,7 +382,7 @@ export interface InitializePositionByOperator {
 
 export const initializePositionByOperator = instruction(
   {
-    d8: "0xfbbdbef475fe2394",
+    d8: '0xfbbdbef475fe2394',
   },
   {
     payer: 0,
@@ -416,7 +405,7 @@ export const initializePositionByOperator = instruction(
     width: i32,
     feeOwner: address,
     lockReleasePoint: u64,
-  })
+  }),
 );
 
 export interface UpdatePositionOperator {
@@ -425,7 +414,7 @@ export interface UpdatePositionOperator {
 
 export const updatePositionOperator = instruction(
   {
-    d8: "0xcab8678fb4bf74d9",
+    d8: '0xcab8678fb4bf74d9',
   },
   {
     position: 0,
@@ -435,7 +424,7 @@ export const updatePositionOperator = instruction(
   },
   struct({
     operator: address,
-  })
+  }),
 );
 
 export interface Swap {
@@ -445,7 +434,7 @@ export interface Swap {
 
 export const swap = instruction(
   {
-    d8: "0xf8c69e91e17587c8",
+    d8: '0xf8c69e91e17587c8',
   },
   {
     lbPair: 0,
@@ -467,7 +456,7 @@ export const swap = instruction(
   struct({
     amountIn: u64,
     minAmountOut: u64,
-  })
+  }),
 );
 
 export interface SwapExactOut {
@@ -477,7 +466,7 @@ export interface SwapExactOut {
 
 export const swapExactOut = instruction(
   {
-    d8: "0xfa49652126cf4bb8",
+    d8: '0xfa49652126cf4bb8',
   },
   {
     lbPair: 0,
@@ -499,7 +488,7 @@ export const swapExactOut = instruction(
   struct({
     maxInAmount: u64,
     outAmount: u64,
-  })
+  }),
 );
 
 export interface SwapWithPriceImpact {
@@ -510,7 +499,7 @@ export interface SwapWithPriceImpact {
 
 export const swapWithPriceImpact = instruction(
   {
-    d8: "0x38ade6d0ade49ccd",
+    d8: '0x38ade6d0ade49ccd',
   },
   {
     lbPair: 0,
@@ -533,7 +522,7 @@ export const swapWithPriceImpact = instruction(
     amountIn: u64,
     activeId: option(i32),
     maxPriceImpactBps: u16,
-  })
+  }),
 );
 
 export interface WithdrawProtocolFee {
@@ -543,7 +532,7 @@ export interface WithdrawProtocolFee {
 
 export const withdrawProtocolFee = instruction(
   {
-    d8: "0x9ec99ebd215da267",
+    d8: '0x9ec99ebd215da267',
   },
   {
     lbPair: 0,
@@ -559,7 +548,7 @@ export const withdrawProtocolFee = instruction(
   struct({
     amountX: u64,
     amountY: u64,
-  })
+  }),
 );
 
 export interface InitializeReward {
@@ -570,7 +559,7 @@ export interface InitializeReward {
 
 export const initializeReward = instruction(
   {
-    d8: "0x5f87c0c4f281e644",
+    d8: '0x5f87c0c4f281e644',
   },
   {
     lbPair: 0,
@@ -587,7 +576,7 @@ export const initializeReward = instruction(
     rewardIndex: u64,
     rewardDuration: u64,
     funder: address,
-  })
+  }),
 );
 
 export interface FundReward {
@@ -598,7 +587,7 @@ export interface FundReward {
 
 export const fundReward = instruction(
   {
-    d8: "0xbc32f9a55d97263f",
+    d8: '0xbc32f9a55d97263f',
   },
   {
     lbPair: 0,
@@ -615,7 +604,7 @@ export const fundReward = instruction(
     rewardIndex: u64,
     amount: u64,
     carryForward: bool,
-  })
+  }),
 );
 
 export interface UpdateRewardFunder {
@@ -625,7 +614,7 @@ export interface UpdateRewardFunder {
 
 export const updateRewardFunder = instruction(
   {
-    d8: "0xd31c3020d7a02317",
+    d8: '0xd31c3020d7a02317',
   },
   {
     lbPair: 0,
@@ -636,7 +625,7 @@ export const updateRewardFunder = instruction(
   struct({
     rewardIndex: u64,
     newFunder: address,
-  })
+  }),
 );
 
 export interface UpdateRewardDuration {
@@ -646,7 +635,7 @@ export interface UpdateRewardDuration {
 
 export const updateRewardDuration = instruction(
   {
-    d8: "0x8aaec4a9d5ebfe6b",
+    d8: '0x8aaec4a9d5ebfe6b',
   },
   {
     lbPair: 0,
@@ -658,7 +647,7 @@ export const updateRewardDuration = instruction(
   struct({
     rewardIndex: u64,
     newDuration: u64,
-  })
+  }),
 );
 
 export interface ClaimReward {
@@ -667,7 +656,7 @@ export interface ClaimReward {
 
 export const claimReward = instruction(
   {
-    d8: "0x955fb5f25e5a9ea2",
+    d8: '0x955fb5f25e5a9ea2',
   },
   {
     lbPair: 0,
@@ -684,14 +673,14 @@ export const claimReward = instruction(
   },
   struct({
     rewardIndex: u64,
-  })
+  }),
 );
 
 export type ClaimFee = undefined;
 
 export const claimFee = instruction(
   {
-    d8: "0xa9204f8988e84689",
+    d8: '0xa9204f8988e84689',
   },
   {
     lbPair: 0,
@@ -709,14 +698,14 @@ export const claimFee = instruction(
     eventAuthority: 12,
     program: 13,
   },
-  unit
+  unit,
 );
 
 export type ClosePosition = undefined;
 
 export const closePosition = instruction(
   {
-    d8: "0x7b86510031446262",
+    d8: '0x7b86510031446262',
   },
   {
     position: 0,
@@ -728,7 +717,7 @@ export const closePosition = instruction(
     eventAuthority: 6,
     program: 7,
   },
-  unit
+  unit,
 );
 
 export interface UpdateFeeParameters {
@@ -737,7 +726,7 @@ export interface UpdateFeeParameters {
 
 export const updateFeeParameters = instruction(
   {
-    d8: "0x8080d05bf6351fb0",
+    d8: '0x8080d05bf6351fb0',
   },
   {
     lbPair: 0,
@@ -747,7 +736,7 @@ export const updateFeeParameters = instruction(
   },
   struct({
     feeParameter: FeeParameter,
-  })
+  }),
 );
 
 export interface IncreaseOracleLength {
@@ -756,7 +745,7 @@ export interface IncreaseOracleLength {
 
 export const increaseOracleLength = instruction(
   {
-    d8: "0xbe3d7d57674f9ead",
+    d8: '0xbe3d7d57674f9ead',
   },
   {
     oracle: 0,
@@ -767,7 +756,7 @@ export const increaseOracleLength = instruction(
   },
   struct({
     lengthToAdd: u64,
-  })
+  }),
 );
 
 export interface InitializePresetParameter {
@@ -776,7 +765,7 @@ export interface InitializePresetParameter {
 
 export const initializePresetParameter = instruction(
   {
-    d8: "0x42bc47d3626d0eba",
+    d8: '0x42bc47d3626d0eba',
   },
   {
     presetParameter: 0,
@@ -786,28 +775,28 @@ export const initializePresetParameter = instruction(
   },
   struct({
     ix: InitPresetParametersIx,
-  })
+  }),
 );
 
 export type ClosePresetParameter = undefined;
 
 export const closePresetParameter = instruction(
   {
-    d8: "0x04949164861ab53d",
+    d8: '0x04949164861ab53d',
   },
   {
     presetParameter: 0,
     admin: 1,
     rentReceiver: 2,
   },
-  unit
+  unit,
 );
 
 export type RemoveAllLiquidity = undefined;
 
 export const removeAllLiquidity = instruction(
   {
-    d8: "0x0a333d2370691855",
+    d8: '0x0a333d2370691855',
   },
   {
     position: 0,
@@ -827,27 +816,27 @@ export const removeAllLiquidity = instruction(
     eventAuthority: 14,
     program: 15,
   },
-  unit
+  unit,
 );
 
 export type TogglePairStatus = undefined;
 
 export const togglePairStatus = instruction(
   {
-    d8: "0x3d7334172e0d1f90",
+    d8: '0x3d7334172e0d1f90',
   },
   {
     lbPair: 0,
     admin: 1,
   },
-  unit
+  unit,
 );
 
 export type MigratePosition = undefined;
 
 export const migratePosition = instruction(
   {
-    d8: "0x0f843b32c706fb2e",
+    d8: '0x0f843b32c706fb2e',
   },
   {
     positionV2: 0,
@@ -861,26 +850,26 @@ export const migratePosition = instruction(
     eventAuthority: 8,
     program: 9,
   },
-  unit
+  unit,
 );
 
 export type MigrateBinArray = undefined;
 
 export const migrateBinArray = instruction(
   {
-    d8: "0x11179fd365b829f1",
+    d8: '0x11179fd365b829f1',
   },
   {
     lbPair: 0,
   },
-  unit
+  unit,
 );
 
 export type UpdateFeesAndRewards = undefined;
 
 export const updateFeesAndRewards = instruction(
   {
-    d8: "0x9ae6fa0decd14bdf",
+    d8: '0x9ae6fa0decd14bdf',
   },
   {
     position: 0,
@@ -889,7 +878,7 @@ export const updateFeesAndRewards = instruction(
     binArrayUpper: 3,
     owner: 4,
   },
-  unit
+  unit,
 );
 
 export interface WithdrawIneligibleReward {
@@ -898,7 +887,7 @@ export interface WithdrawIneligibleReward {
 
 export const withdrawIneligibleReward = instruction(
   {
-    d8: "0x94ce2ac3f7316708",
+    d8: '0x94ce2ac3f7316708',
   },
   {
     lbPair: 0,
@@ -913,7 +902,7 @@ export const withdrawIneligibleReward = instruction(
   },
   struct({
     rewardIndex: u64,
-  })
+  }),
 );
 
 export interface SetActivationPoint {
@@ -922,7 +911,7 @@ export interface SetActivationPoint {
 
 export const setActivationPoint = instruction(
   {
-    d8: "0x5bf90fa51a81fe7d",
+    d8: '0x5bf90fa51a81fe7d',
   },
   {
     lbPair: 0,
@@ -930,7 +919,7 @@ export const setActivationPoint = instruction(
   },
   struct({
     activationPoint: u64,
-  })
+  }),
 );
 
 export interface RemoveLiquidityByRange {
@@ -941,7 +930,7 @@ export interface RemoveLiquidityByRange {
 
 export const removeLiquidityByRange = instruction(
   {
-    d8: "0x1a526698f04a691a",
+    d8: '0x1a526698f04a691a',
   },
   {
     position: 0,
@@ -965,7 +954,7 @@ export const removeLiquidityByRange = instruction(
     fromBinId: i32,
     toBinId: i32,
     bpsToRemove: u16,
-  })
+  }),
 );
 
 export interface AddLiquidityOneSidePrecise {
@@ -974,7 +963,7 @@ export interface AddLiquidityOneSidePrecise {
 
 export const addLiquidityOneSidePrecise = instruction(
   {
-    d8: "0xa1c26754ab47fa9a",
+    d8: '0xa1c26754ab47fa9a',
   },
   {
     position: 0,
@@ -992,7 +981,7 @@ export const addLiquidityOneSidePrecise = instruction(
   },
   struct({
     parameter: AddLiquiditySingleSidePreciseParameter,
-  })
+  }),
 );
 
 export interface GoToABin {
@@ -1001,7 +990,7 @@ export interface GoToABin {
 
 export const goToABin = instruction(
   {
-    d8: "0x9248aee028fd54ae",
+    d8: '0x9248aee028fd54ae',
   },
   {
     lbPair: 0,
@@ -1013,7 +1002,7 @@ export const goToABin = instruction(
   },
   struct({
     binId: i32,
-  })
+  }),
 );
 
 export interface SetPreActivationDuration {
@@ -1022,7 +1011,7 @@ export interface SetPreActivationDuration {
 
 export const setPreActivationDuration = instruction(
   {
-    d8: "0xa53dc9f4829f1664",
+    d8: '0xa53dc9f4829f1664',
   },
   {
     lbPair: 0,
@@ -1030,7 +1019,7 @@ export const setPreActivationDuration = instruction(
   },
   struct({
     preActivationDuration: u64,
-  })
+  }),
 );
 
 export interface SetPreActivationSwapAddress {
@@ -1039,7 +1028,7 @@ export interface SetPreActivationSwapAddress {
 
 export const setPreActivationSwapAddress = instruction(
   {
-    d8: "0x398b2f7bd850df0a",
+    d8: '0x398b2f7bd850df0a',
   },
   {
     lbPair: 0,
@@ -1047,5 +1036,5 @@ export const setPreActivationSwapAddress = instruction(
   },
   struct({
     preActivationSwapAddress: address,
-  })
+  }),
 );

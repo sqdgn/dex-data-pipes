@@ -12,7 +12,7 @@ export const ClaimVestedEvent = event(
   {
     d8: '0x15c2725778d3e220',
   },
-  ClaimVestedEvent_
+  ClaimVestedEvent_,
 );
 
 export type CreateVestingEvent = CreateVestingEvent_;
@@ -21,7 +21,7 @@ export const CreateVestingEvent = event(
   {
     d8: '0x96980bb334d2bf7d',
   },
-  CreateVestingEvent_
+  CreateVestingEvent_,
 );
 
 export type PoolCreateEvent = PoolCreateEvent_;
@@ -30,7 +30,7 @@ export const PoolCreateEvent = event(
   {
     d8: '0x97d7e20976a173ae',
   },
-  PoolCreateEvent_
+  PoolCreateEvent_,
 );
 
 export type TradeEvent = TradeEvent_;
@@ -39,5 +39,5 @@ export const TradeEvent = event(
   {
     d8: '0xbddb7fd34ee661ee',
   },
-  TradeEvent_
+  TradeEvent_,
 );

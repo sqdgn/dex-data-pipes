@@ -15,10 +15,7 @@ import { getInstructionDescriptor } from '@subsquid/solana-stream';
 import type { Traded } from '../contracts/orca-whirlpool/types';
 import { Block, Instruction, SolanaSwapCore } from '../types';
 
-export function handleWhirlpool(
-  ins: Instruction,
-  block: Block
-): SolanaSwapCore {
+export function handleWhirlpool(ins: Instruction, block: Block): SolanaSwapCore {
   const swapEvent = getSwapEvent(ins, block);
   const [
     {
@@ -30,45 +27,32 @@ export function handleWhirlpool(
       data: { amount: outputTokenAmount },
     },
   ] = getInnerTransfersByLevel(ins, block.instructions, 1).map((t) =>
-    tokenProgram.instructions.transfer.decode(t)
+    tokenProgram.instructions.transfer.decode(t),
   );
   const tokenBalances = getInstructionBalances(ins, block);
   const tokenIn = getPostTokenBalance(tokenBalances, tokenInAccount);
   const tokenOut = getPostTokenBalance(tokenBalances, tokenOutAccount);
 
   const swapPrice =
-    tokenIn && tokenOut && swapEvent
-      ? getPoolPrice(swapEvent, tokenIn, tokenOut)
-      : null;
+    tokenIn && tokenOut && swapEvent ? getPoolPrice(swapEvent, tokenIn, tokenOut) : null;
 
   const slippage =
     tokenIn && tokenOut && swapPrice && swapEvent
-      ? getSlippage(
-          tokenIn,
-          tokenOut,
-          inputTokenAmount,
-          outputTokenAmount,
-          swapEvent,
-          swapPrice
-        )
+      ? getSlippage(tokenIn, tokenOut, inputTokenAmount, outputTokenAmount, swapEvent, swapPrice)
       : null;
 
-  const {
-    whirlpool: poolAddress,
-    tokenVaultA,
-    tokenVaultB,
-  } = getPoolAccounts(ins);
+  const { whirlpool: poolAddress, tokenVaultA, tokenVaultB } = getPoolAccounts(ins);
 
   const reserves = getTokenReserves(ins, block, [tokenVaultA, tokenVaultB]);
   const reserveIn = reserves[tokenIn.postMint];
   const reserveOut = reserves[tokenOut.postMint];
   assert(
     reserveIn !== undefined,
-    `Orca: Missing input reserve. Tx hash: ${getTransactionHash(ins, block)}`
+    `Orca: Missing input reserve. Tx hash: ${getTransactionHash(ins, block)}`,
   );
   assert(
     reserveOut !== undefined,
-    `Orca: Missing output reserve. Tx hash: ${getTransactionHash(ins, block)}`
+    `Orca: Missing output reserve. Tx hash: ${getTransactionHash(ins, block)}`,
   );
 
   return {
@@ -91,28 +75,16 @@ export function handleWhirlpool(
   };
 }
 
-function getPoolPrice(
-  swapEvent: Traded,
-  tokenIn: PostTokenBalance,
-  tokenOut: PostTokenBalance
-) {
+function getPoolPrice(swapEvent: Traded, tokenIn: PostTokenBalance, tokenOut: PostTokenBalance) {
   const sqrtPrice = swapEvent.preSqrtPrice;
-  const tokenADecimals = swapEvent.aToB
-    ? tokenIn.postDecimals
-    : tokenOut.postDecimals;
-  const tokenBDecimals = swapEvent.aToB
-    ? tokenOut.postDecimals
-    : tokenIn.postDecimals;
+  const tokenADecimals = swapEvent.aToB ? tokenIn.postDecimals : tokenOut.postDecimals;
+  const tokenBDecimals = swapEvent.aToB ? tokenOut.postDecimals : tokenIn.postDecimals;
 
   if (tokenADecimals === undefined || tokenBDecimals === undefined) {
     console.error('No token decimals found');
     return null;
   }
-  const poolPrice = sqrtPriceX64ToPrice(
-    sqrtPrice,
-    tokenADecimals,
-    tokenBDecimals
-  );
+  const poolPrice = sqrtPriceX64ToPrice(sqrtPrice, tokenADecimals, tokenBDecimals);
 
   return poolPrice;
 }
@@ -124,12 +96,10 @@ function getSlippage(
   inputTokenAmount: bigint,
   outputTokenAmount: bigint,
   swapEvent: Traded,
-  poolPrice: number
+  poolPrice: number,
 ): number {
   const inputAmount = Number(inputTokenAmount) / 10 ** tokenIn.postDecimals;
-  const expectedAmount = swapEvent.aToB
-    ? inputAmount * poolPrice
-    : inputAmount / poolPrice;
+  const expectedAmount = swapEvent.aToB ? inputAmount * poolPrice : inputAmount / poolPrice;
   const actualAmount = Number(outputTokenAmount) / 10 ** tokenOut.postDecimals;
   const slippage = ((expectedAmount - actualAmount) / expectedAmount) * 100;
 

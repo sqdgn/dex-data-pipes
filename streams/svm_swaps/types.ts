@@ -5,26 +5,21 @@ import { BlockRef } from '@sqd-pipes/core';
 type WithPickedFields<
   Selection extends FieldSelection,
   K extends keyof Selection,
-  FullDataType
+  FullDataType,
 > = Pick<FullDataType, keyof Selection[K] & keyof FullDataType>;
 
-export type PartialInstruction<Selection extends FieldSelection> =
-  WithPickedFields<Selection, 'instruction', PortalData.Instruction>;
+export type PartialInstruction<Selection extends FieldSelection> = WithPickedFields<
+  Selection,
+  'instruction',
+  PortalData.Instruction
+>;
 
 export type PartialBlock<Selection extends FieldSelection> = {
   header: WithPickedFields<Selection, 'block', PortalData.BlockHeader>;
-  transactions: WithPickedFields<
-    Selection,
-    'transaction',
-    PortalData.Transaction
-  >[];
+  transactions: WithPickedFields<Selection, 'transaction', PortalData.Transaction>[];
   instructions: PartialInstruction<Selection>[];
   logs: WithPickedFields<Selection, 'log', PortalData.LogMessage>[];
-  tokenBalances: WithPickedFields<
-    Selection,
-    'tokenBalance',
-    PortalData.TokenBalance
-  >[];
+  tokenBalances: WithPickedFields<Selection, 'tokenBalance', PortalData.TokenBalance>[];
 };
 
 export interface TokenAmount {

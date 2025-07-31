@@ -16,14 +16,8 @@ export class RaydiumCpmmSwapBaseInputHandler extends RaydiumCpmmSwapBaseHandler 
     const { inputVault, outputVault, poolAddress } = this.getAccounts();
 
     const tokenBalances = getInstructionBalances(this.instruction, this.block);
-    const { preAmount: inputReserves } = getPreTokenBalance(
-      tokenBalances,
-      inputVault
-    );
-    const { preAmount: outputReserves } = getPreTokenBalance(
-      tokenBalances,
-      outputVault
-    );
+    const { preAmount: inputReserves } = getPreTokenBalance(tokenBalances, inputVault);
+    const { preAmount: outputReserves } = getPreTokenBalance(tokenBalances, outputVault);
 
     const { inputTokenAmount, outputTokenAmount, authority, owner } =
       this.getInputAndOutputTokenAmounts();
@@ -37,7 +31,7 @@ export class RaydiumCpmmSwapBaseInputHandler extends RaydiumCpmmSwapBaseHandler 
       inputTokenAmount,
       outputTokenAmount,
       inputReserves,
-      outputReserves
+      outputReserves,
     );
 
     return {
@@ -64,36 +58,28 @@ export class RaydiumCpmmSwapBaseInputHandler extends RaydiumCpmmSwapBaseHandler 
     inputToken: TokenAmount,
     outputToken: TokenAmount,
     inputTokenReserves: bigint,
-    outputTokenReserves: bigint
+    outputTokenReserves: bigint,
   ) {
     const expectedAmountOutBigInt = this.getAmountOut(
       inputToken.amount,
       inputTokenReserves,
-      outputTokenReserves
+      outputTokenReserves,
     );
 
     const amountOut = Number(outputToken.amount) / 10 ** outputToken.decimals;
-    const expectedAmountOut =
-      Number(expectedAmountOutBigInt) / 10 ** outputToken.decimals;
+    const expectedAmountOut = Number(expectedAmountOutBigInt) / 10 ** outputToken.decimals;
 
-    const slippage =
-      ((expectedAmountOut - amountOut) / expectedAmountOut) * 100;
+    const slippage = ((expectedAmountOut - amountOut) / expectedAmountOut) * 100;
 
     return slippage;
   }
 
-  private getAmountOut(
-    amountIn: bigint,
-    reserveIn: bigint,
-    reserveOut: bigint
-  ): number {
+  private getAmountOut(amountIn: bigint, reserveIn: bigint, reserveOut: bigint): number {
     const amountInWithFee =
       amountIn *
-      (RaydiumCpmmSwapBaseHandler.FEE_DENOMINATOR -
-        RaydiumCpmmSwapBaseHandler.PROTOCOL_FEE);
+      (RaydiumCpmmSwapBaseHandler.FEE_DENOMINATOR - RaydiumCpmmSwapBaseHandler.PROTOCOL_FEE);
     const numerator = amountInWithFee * reserveOut;
-    const denominator =
-      reserveIn * RaydiumCpmmSwapBaseHandler.FEE_DENOMINATOR + amountInWithFee;
+    const denominator = reserveIn * RaydiumCpmmSwapBaseHandler.FEE_DENOMINATOR + amountInWithFee;
     return Number(numerator / denominator);
   }
 }

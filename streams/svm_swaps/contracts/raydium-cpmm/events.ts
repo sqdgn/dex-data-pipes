@@ -1,8 +1,5 @@
 import { event } from '../abi.support';
-import {
-  LpChangeEvent as LpChangeEvent_,
-  SwapEvent as SwapEvent_,
-} from './types';
+import { LpChangeEvent as LpChangeEvent_, SwapEvent as SwapEvent_ } from './types';
 
 export type LpChangeEvent = LpChangeEvent_;
 
@@ -10,7 +7,7 @@ export const LpChangeEvent = event(
   {
     d8: '0x79a3cdc939da753c',
   },
-  LpChangeEvent_
+  LpChangeEvent_,
 );
 
 export type SwapEvent = SwapEvent_;
@@ -19,5 +16,5 @@ export const SwapEvent = event(
   {
     d8: '0x40c6cde8260871e2',
   },
-  SwapEvent_
+  SwapEvent_,
 );

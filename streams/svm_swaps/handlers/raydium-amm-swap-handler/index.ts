@@ -6,14 +6,10 @@ import { getInstructionDescriptor } from '@subsquid/solana-stream';
 
 export const handlerRegistry = {
   [raydiumCpmm.instructions.swapBaseInput.d8]: RaydiumCpmmSwapBaseInputHandler,
-  [raydiumCpmm.instructions.swapBaseOutput.d8]:
-    RaydiumCpmmSwapBaseOutputHandler,
+  [raydiumCpmm.instructions.swapBaseOutput.d8]: RaydiumCpmmSwapBaseOutputHandler,
 } as const;
 
-export function handleRaydiumAmm(
-  instruction: Instruction,
-  block: Block
-): SolanaSwapCore {
+export function handleRaydiumAmm(instruction: Instruction, block: Block): SolanaSwapCore {
   const d8 = getInstructionDescriptor(instruction);
   const Handler = handlerRegistry[d8];
 

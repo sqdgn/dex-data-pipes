@@ -1,14 +1,6 @@
-import {
-  address,
-  option,
-  string,
-  struct,
-  u64,
-  u8,
-  unit,
-} from "@subsquid/borsh";
-import { instruction } from "../abi.support";
-import { AuthorityType, ExtensionTypeArray } from "./types";
+import { address, option, string, struct, u64, u8, unit } from '@subsquid/borsh';
+import { instruction } from '../abi.support';
+import { AuthorityType, ExtensionTypeArray } from './types';
 
 export interface InitializeMint {
   decimals: number;
@@ -18,7 +10,7 @@ export interface InitializeMint {
 
 export const initializeMint = instruction(
   {
-    d1: "0x00",
+    d1: '0x00',
   },
   {
     mint: 0,
@@ -28,14 +20,14 @@ export const initializeMint = instruction(
     decimals: u8,
     mintAuthority: address,
     freezeAuthority: option(address),
-  })
+  }),
 );
 
 export type InitializeAccount = undefined;
 
 export const initializeAccount = instruction(
   {
-    d1: "0x01",
+    d1: '0x01',
   },
   {
     accountToInitialize: 0,
@@ -43,7 +35,7 @@ export const initializeAccount = instruction(
     owner: 2,
     rent: 3,
   },
-  unit
+  unit,
 );
 
 export interface InitializeMultisig {
@@ -52,7 +44,7 @@ export interface InitializeMultisig {
 
 export const initializeMultisig = instruction(
   {
-    d1: "0x02",
+    d1: '0x02',
   },
   {
     multisig: 0,
@@ -71,7 +63,7 @@ export const initializeMultisig = instruction(
   },
   struct({
     noOfSignersRequired: u8,
-  })
+  }),
 );
 
 export interface Transfer {
@@ -80,7 +72,7 @@ export interface Transfer {
 
 export const transfer = instruction(
   {
-    d1: "0x03",
+    d1: '0x03',
   },
   {
     source: 0,
@@ -90,7 +82,7 @@ export const transfer = instruction(
   },
   struct({
     amount: u64,
-  })
+  }),
 );
 
 export interface Approve {
@@ -99,7 +91,7 @@ export interface Approve {
 
 export const approve = instruction(
   {
-    d1: "0x04",
+    d1: '0x04',
   },
   {
     source: 0,
@@ -109,21 +101,21 @@ export const approve = instruction(
   },
   struct({
     amount: u64,
-  })
+  }),
 );
 
 export type Revoke = undefined;
 
 export const revoke = instruction(
   {
-    d1: "0x05",
+    d1: '0x05',
   },
   {
     source: 0,
     owner: 1,
     signers: 2,
   },
-  unit
+  unit,
 );
 
 export interface SetAuthority {
@@ -133,7 +125,7 @@ export interface SetAuthority {
 
 export const setAuthority = instruction(
   {
-    d1: "0x06",
+    d1: '0x06',
   },
   {
     mint: 0,
@@ -143,7 +135,7 @@ export const setAuthority = instruction(
   struct({
     authorityType: AuthorityType,
     newAuthority: option(address),
-  })
+  }),
 );
 
 export interface MintTo {
@@ -152,7 +144,7 @@ export interface MintTo {
 
 export const mintTo = instruction(
   {
-    d1: "0x07",
+    d1: '0x07',
   },
   {
     mint: 0,
@@ -162,7 +154,7 @@ export const mintTo = instruction(
   },
   struct({
     amount: u64,
-  })
+  }),
 );
 
 export interface Burn {
@@ -171,7 +163,7 @@ export interface Burn {
 
 export const burn = instruction(
   {
-    d1: "0x08",
+    d1: '0x08',
   },
   {
     burnAccount: 0,
@@ -181,14 +173,14 @@ export const burn = instruction(
   },
   struct({
     amount: u64,
-  })
+  }),
 );
 
 export type CloseAccount = undefined;
 
 export const closeAccount = instruction(
   {
-    d1: "0x09",
+    d1: '0x09',
   },
   {
     closeAccount: 0,
@@ -196,14 +188,14 @@ export const closeAccount = instruction(
     owner: 2,
     signers: 3,
   },
-  unit
+  unit,
 );
 
 export type FreezeAccount = undefined;
 
 export const freezeAccount = instruction(
   {
-    d1: "0x0a",
+    d1: '0x0a',
   },
   {
     freezeAccount: 0,
@@ -211,14 +203,14 @@ export const freezeAccount = instruction(
     owner: 2,
     signers: 3,
   },
-  unit
+  unit,
 );
 
 export type ThawAccount = undefined;
 
 export const thawAccount = instruction(
   {
-    d1: "0x0b",
+    d1: '0x0b',
   },
   {
     thawAccount: 0,
@@ -226,7 +218,7 @@ export const thawAccount = instruction(
     owner: 2,
     signers: 3,
   },
-  unit
+  unit,
 );
 
 export interface TransferChecked {
@@ -236,7 +228,7 @@ export interface TransferChecked {
 
 export const transferChecked = instruction(
   {
-    d1: "0x0c",
+    d1: '0x0c',
   },
   {
     source: 0,
@@ -248,7 +240,7 @@ export const transferChecked = instruction(
   struct({
     amount: u64,
     decimals: u8,
-  })
+  }),
 );
 
 export interface ApproveChecked {
@@ -258,7 +250,7 @@ export interface ApproveChecked {
 
 export const approveChecked = instruction(
   {
-    d1: "0x0d",
+    d1: '0x0d',
   },
   {
     source: 0,
@@ -270,7 +262,7 @@ export const approveChecked = instruction(
   struct({
     amount: u64,
     decimals: u8,
-  })
+  }),
 );
 
 export interface MintToChecked {
@@ -280,7 +272,7 @@ export interface MintToChecked {
 
 export const mintToChecked = instruction(
   {
-    d1: "0x0e",
+    d1: '0x0e',
   },
   {
     tokenMint: 0,
@@ -291,7 +283,7 @@ export const mintToChecked = instruction(
   struct({
     amount: u64,
     decimals: u8,
-  })
+  }),
 );
 
 export interface BurnChecked {
@@ -301,7 +293,7 @@ export interface BurnChecked {
 
 export const burnChecked = instruction(
   {
-    d1: "0x0f",
+    d1: '0x0f',
   },
   {
     burnAccount: 0,
@@ -312,7 +304,7 @@ export const burnChecked = instruction(
   struct({
     amount: u64,
     decimals: u8,
-  })
+  }),
 );
 
 export interface InitializeAccount2 {
@@ -321,7 +313,7 @@ export interface InitializeAccount2 {
 
 export const initializeAccount2 = instruction(
   {
-    d1: "0x10",
+    d1: '0x10',
   },
   {
     initializeAccount: 0,
@@ -330,19 +322,19 @@ export const initializeAccount2 = instruction(
   },
   struct({
     owner: address,
-  })
+  }),
 );
 
 export type SyncNative = undefined;
 
 export const syncNative = instruction(
   {
-    d1: "0x11",
+    d1: '0x11',
   },
   {
     nativeTokenAccount: 0,
   },
-  unit
+  unit,
 );
 
 export interface InitializeAccount3 {
@@ -351,7 +343,7 @@ export interface InitializeAccount3 {
 
 export const initializeAccount3 = instruction(
   {
-    d1: "0x12",
+    d1: '0x12',
   },
   {
     initializeAccount: 0,
@@ -359,7 +351,7 @@ export const initializeAccount3 = instruction(
   },
   struct({
     owner: address,
-  })
+  }),
 );
 
 export interface InitializeMultisig2 {
@@ -368,7 +360,7 @@ export interface InitializeMultisig2 {
 
 export const initializeMultisig2 = instruction(
   {
-    d1: "0x13",
+    d1: '0x13',
   },
   {
     initializeAccount: 0,
@@ -386,7 +378,7 @@ export const initializeMultisig2 = instruction(
   },
   struct({
     noOfSignersRequired: u8,
-  })
+  }),
 );
 
 export interface InitializeMint2 {
@@ -397,7 +389,7 @@ export interface InitializeMint2 {
 
 export const initializeMint2 = instruction(
   {
-    d1: "0x14",
+    d1: '0x14',
   },
   {
     mint: 0,
@@ -406,7 +398,7 @@ export const initializeMint2 = instruction(
     decimals: u8,
     mintAuthority: address,
     freezeAuthority: option(address),
-  })
+  }),
 );
 
 export interface GetAccountDataSize {
@@ -415,26 +407,26 @@ export interface GetAccountDataSize {
 
 export const getAccountDataSize = instruction(
   {
-    d1: "0x15",
+    d1: '0x15',
   },
   {
     mint: 0,
   },
   struct({
     extensionType: ExtensionTypeArray,
-  })
+  }),
 );
 
 export type InitializeImmutableOwner = undefined;
 
 export const initializeImmutableOwner = instruction(
   {
-    d1: "0x16",
+    d1: '0x16',
   },
   {
     initializeAccount: 0,
   },
-  unit
+  unit,
 );
 
 export interface AmountToUiAmount {
@@ -443,14 +435,14 @@ export interface AmountToUiAmount {
 
 export const amountToUiAmount = instruction(
   {
-    d1: "0x17",
+    d1: '0x17',
   },
   {
     mint: 0,
   },
   struct({
     amount: u64,
-  })
+  }),
 );
 
 export interface UiAmountToAmount {
@@ -459,14 +451,14 @@ export interface UiAmountToAmount {
 
 export const uiAmountToAmount = instruction(
   {
-    d1: "0x18",
+    d1: '0x18',
   },
   {
     mint: 0,
   },
   struct({
     uiAmount: string,
-  })
+  }),
 );
 
 export interface InitializeMintCloseAuthority {
@@ -475,44 +467,44 @@ export interface InitializeMintCloseAuthority {
 
 export const initializeMintCloseAuthority = instruction(
   {
-    d1: "0x19",
+    d1: '0x19',
   },
   {
     mint: 0,
   },
   struct({
     closeAuthority: option(address),
-  })
+  }),
 );
 
 export type TransferFeeExtension = undefined;
 
 export const transferFeeExtension = instruction(
   {
-    d1: "0x1a",
+    d1: '0x1a',
   },
   {},
-  unit
+  unit,
 );
 
 export type ConfidentialTransferExtension = undefined;
 
 export const confidentialTransferExtension = instruction(
   {
-    d1: "0x1b",
+    d1: '0x1b',
   },
   {},
-  unit
+  unit,
 );
 
 export type DefaultAccountStateExtension = undefined;
 
 export const defaultAccountStateExtension = instruction(
   {
-    d1: "0x1c",
+    d1: '0x1c',
   },
   {},
-  unit
+  unit,
 );
 
 export interface Reallocate {
@@ -521,7 +513,7 @@ export interface Reallocate {
 
 export const reallocate = instruction(
   {
-    d1: "0x1d",
+    d1: '0x1d',
   },
   {
     reallocatedAccount: 0,
@@ -532,62 +524,62 @@ export const reallocate = instruction(
   },
   struct({
     extensionType: ExtensionTypeArray,
-  })
+  }),
 );
 
 export type MemoTransferExtension = undefined;
 
 export const memoTransferExtension = instruction(
   {
-    d1: "0x1e",
+    d1: '0x1e',
   },
   {},
-  unit
+  unit,
 );
 
 export type CreateNativeMint = undefined;
 
 export const createNativeMint = instruction(
   {
-    d1: "0x1f",
+    d1: '0x1f',
   },
   {
     fundingAccount: 0,
     mint: 1,
   },
-  unit
+  unit,
 );
 
 export type InitializeNonTransferableMint = undefined;
 
 export const initializeNonTransferableMint = instruction(
   {
-    d1: "0x20",
+    d1: '0x20',
   },
   {
     mint: 0,
   },
-  unit
+  unit,
 );
 
 export type InterestBearingMintExtension = undefined;
 
 export const interestBearingMintExtension = instruction(
   {
-    d1: "0x21",
+    d1: '0x21',
   },
   {},
-  unit
+  unit,
 );
 
 export type CpiGuardExtension = undefined;
 
 export const cpiGuardExtension = instruction(
   {
-    d1: "0x22",
+    d1: '0x22',
   },
   {},
-  unit
+  unit,
 );
 
 export interface InitializePermanentDelegate {
@@ -596,41 +588,41 @@ export interface InitializePermanentDelegate {
 
 export const initializePermanentDelegate = instruction(
   {
-    d1: "0x23",
+    d1: '0x23',
   },
   {
     mint: 0,
   },
   struct({
     delegate: address,
-  })
+  }),
 );
 
 export type TransferHookExtension = undefined;
 
 export const transferHookExtension = instruction(
   {
-    d1: "0x24",
+    d1: '0x24',
   },
   {},
-  unit
+  unit,
 );
 
 export type ConfidentialTransferFeeExtension = undefined;
 
 export const confidentialTransferFeeExtension = instruction(
   {
-    d1: "0x25",
+    d1: '0x25',
   },
   {},
-  unit
+  unit,
 );
 
 export type WithdrawExcessLamports = undefined;
 
 export const withdrawExcessLamports = instruction(
   {
-    d1: "0x26",
+    d1: '0x26',
   },
   {
     source: 0,
@@ -638,35 +630,35 @@ export const withdrawExcessLamports = instruction(
     authority: 2,
     signers: 3,
   },
-  unit
+  unit,
 );
 
 export type MetadataPointerExtension = undefined;
 
 export const metadataPointerExtension = instruction(
   {
-    d1: "0x27",
+    d1: '0x27',
   },
   {},
-  unit
+  unit,
 );
 
 export type GroupPointerExtension = undefined;
 
 export const groupPointerExtension = instruction(
   {
-    d1: "0x28",
+    d1: '0x28',
   },
   {},
-  unit
+  unit,
 );
 
 export type GroupMemberPointerExtension = undefined;
 
 export const groupMemberPointerExtension = instruction(
   {
-    d1: "0x29",
+    d1: '0x29',
   },
   {},
-  unit
+  unit,
 );

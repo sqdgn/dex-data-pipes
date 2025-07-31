@@ -1,11 +1,6 @@
 import { PortalAbstractStream } from '@sqd-pipes/core';
 import { getInstructionDescriptor } from '@subsquid/solana-stream';
-import {
-  getTransaction,
-  getTransactionAccount,
-  getTransactionHash,
-  timeIt,
-} from './utils';
+import { getTransaction, getTransactionAccount, getTransactionHash, timeIt } from './utils';
 import * as meteoraDamm from './contracts/meteora-damm';
 import * as meteoraDlmm from './contracts/meteora-dlmm';
 import * as whirlpool from './contracts/orca-whirlpool';
@@ -15,10 +10,7 @@ import * as raydiumLaunchlab from './contracts/raydium-lanuchlab';
 import * as metaplex from './contracts/metaplex';
 import * as token from './contracts/token-program';
 import * as token2022 from './contracts/token-2022-program';
-import {
-  handleMeteoraDamm,
-  handleMeteoraDlmm,
-} from './handlers/meteora-swap-handler';
+import { handleMeteoraDamm, handleMeteoraDlmm } from './handlers/meteora-swap-handler';
 import { handleWhirlpool } from './handlers/orca-swap-handler';
 import { handleRaydiumAmm } from './handlers/raydium-amm-swap-handler';
 import { handleRaydiumClmm } from './handlers/raydium-clmm-swap-handler';
@@ -95,9 +87,7 @@ export const swapStreamFieldsSelection = {
 };
 
 export type SwapStreamBlock = PartialBlock<typeof swapStreamFieldsSelection>;
-export type SwapStreamInstruction = PartialInstruction<
-  typeof swapStreamFieldsSelection
->;
+export type SwapStreamInstruction = PartialInstruction<typeof swapStreamFieldsSelection>;
 
 export class SolanaSwapsStream extends PortalAbstractStream<SolanaSwap, Args> {
   storage: MetadataStorage;
@@ -142,17 +132,12 @@ export class SolanaSwapsStream extends PortalAbstractStream<SolanaSwap, Args> {
     timeIt(
       this.logger,
       'Processing tokens batch',
-      () =>
-        this.storage.tokens.processBatch(
-          tokens,
-          tokensMetadata,
-          tokenMetadataUpdates
-        ),
+      () => this.storage.tokens.processBatch(tokens, tokensMetadata, tokenMetadataUpdates),
       {
         tokens: tokens.length,
         tokensMetadata: tokensMetadata.length,
         tokenMetadataUpdates: tokenMetadataUpdates.length,
-      }
+      },
     );
   }
 
@@ -166,8 +151,7 @@ export class SolanaSwapsStream extends PortalAbstractStream<SolanaSwap, Args> {
           const d8 = getInstructionDescriptor(ins);
           switch (d8) {
             case raydiumLaunchlab.instructions.createConfig.d8: {
-              const config =
-                raydiumLaunchLabHandler.handleCreateGlobalConfig(ins);
+              const config = raydiumLaunchLabHandler.handleCreateGlobalConfig(ins);
               this.storage.launchLabConfig.insertConfig(config);
               break;
             }
@@ -191,14 +175,11 @@ export class SolanaSwapsStream extends PortalAbstractStream<SolanaSwap, Args> {
 
         // FIXME: Defi Tuna instructions have multiple swaps and for some reason
         // we're not being able to decode innner instructions properly.
-        if (accountKeys.includes('tuna4uSQZncNeeiAMKbstuxA9CUkHH6HmC64wgmnogD'))
-          continue;
+        if (accountKeys.includes('tuna4uSQZncNeeiAMKbstuxA9CUkHH6HmC64wgmnogD')) continue;
 
         switch (ins.programId) {
           case whirlpool.programId:
-            if (
-              whirlpool.instructions.swap.d8 === getInstructionDescriptor(ins)
-            ) {
+            if (whirlpool.instructions.swap.d8 === getInstructionDescriptor(ins)) {
               swap = handleWhirlpool(ins, block);
               break;
             }
@@ -238,21 +219,14 @@ export class SolanaSwapsStream extends PortalAbstractStream<SolanaSwap, Args> {
             break;
           case raydiumLaunchlab.programId:
             if (raydiumLaunchLabHandler.isSwapInstruction(ins)) {
-              swap = raydiumLaunchLabHandler.handleSwap(
-                ins,
-                block,
-                this.storage.launchLabConfig
-              );
+              swap = raydiumLaunchLabHandler.handleSwap(ins, block, this.storage.launchLabConfig);
             }
             break;
         }
 
         if (!swap) continue;
 
-        if (
-          args?.tokens &&
-          !this.isPairAllowed(swap.input.mintAcc, swap.output.mintAcc)
-        ) {
+        if (args?.tokens && !this.isPairAllowed(swap.input.mintAcc, swap.output.mintAcc)) {
           continue;
         }
 
@@ -314,10 +288,7 @@ export class SolanaSwapsStream extends PortalAbstractStream<SolanaSwap, Args> {
         // Token mint initialization instructions
         {
           programId: [token.programId],
-          d1: [
-            token.instructions.initializeMint.d1,
-            token.instructions.initializeMint2.d1,
-          ],
+          d1: [token.instructions.initializeMint.d1, token.instructions.initializeMint2.d1],
           isCommitted: true, // where successfully committed
           innerInstructions: true, // inner instructions
           transaction: true, // transaction, that executed the given instruction
@@ -325,10 +296,7 @@ export class SolanaSwapsStream extends PortalAbstractStream<SolanaSwap, Args> {
         },
         {
           programId: [token2022.programId],
-          d1: [
-            token2022.instructions.initializeMint.d1,
-            token2022.instructions.initializeMint2.d1,
-          ],
+          d1: [token2022.instructions.initializeMint.d1, token2022.instructions.initializeMint2.d1],
           isCommitted: true, // where successfully committed
           innerInstructions: true, // inner instructions
           transaction: true, // transaction, that executed the given instruction
@@ -487,7 +455,7 @@ export class SolanaSwapsStream extends PortalAbstractStream<SolanaSwap, Args> {
 
           // Process swaps
           const swaps = timeIt(this.logger, 'Processing swaps', () =>
-            this.processSwapInstructions(blocks)
+            this.processSwapInstructions(blocks),
           );
 
           if (!swaps.length) {
@@ -498,7 +466,7 @@ export class SolanaSwapsStream extends PortalAbstractStream<SolanaSwap, Args> {
 
           controller.enqueue(swaps);
         },
-      })
+      }),
     );
   }
 }

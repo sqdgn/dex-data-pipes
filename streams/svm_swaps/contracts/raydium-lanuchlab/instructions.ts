@@ -108,7 +108,7 @@ export const buyExactIn = instruction(
     amountIn: u64,
     minimumAmountOut: u64,
     shareFeeRate: u64,
-  })
+  }),
 );
 
 /**
@@ -209,7 +209,7 @@ export const buyExactOut = instruction(
     amountOut: u64,
     maximumAmountIn: u64,
     shareFeeRate: u64,
-  })
+  }),
 );
 
 /**
@@ -273,7 +273,7 @@ export const claimPlatformFee = instruction(
      */
     associatedTokenProgram: 9,
   },
-  unit
+  unit,
 );
 
 /**
@@ -334,7 +334,7 @@ export const claimVestedToken = instruction(
      */
     associatedTokenProgram: 9,
   },
-  unit
+  unit,
 );
 
 /**
@@ -388,7 +388,7 @@ export const collectFee = instruction(
      */
     tokenProgram: 7,
   },
-  unit
+  unit,
 );
 
 /**
@@ -442,7 +442,7 @@ export const collectMigrateFee = instruction(
      */
     tokenProgram: 7,
   },
-  unit
+  unit,
 );
 
 /**
@@ -520,7 +520,7 @@ export const createConfig = instruction(
     index: u16,
     migrateFee: u64,
     tradeFeeRate: u64,
-  })
+  }),
 );
 
 /**
@@ -573,7 +573,7 @@ export const createPlatformConfig = instruction(
   },
   struct({
     platformParams: PlatformParams,
-  })
+  }),
 );
 
 /**
@@ -622,7 +622,7 @@ export const createVestingAccount = instruction(
   },
   struct({
     shareAmount: u64,
-  })
+  }),
 );
 
 /**
@@ -730,7 +730,7 @@ export const initialize = instruction(
     baseMintParam: MintParams,
     curveParam: CurveParams,
     vestingParam: VestingParams,
-  })
+  }),
 );
 
 /**
@@ -856,7 +856,7 @@ export const migrateToAmm = instruction(
     baseLotSize: u64,
     quoteLotSize: u64,
     marketVaultSignerNonce: u8,
-  })
+  }),
 );
 
 /**
@@ -971,7 +971,7 @@ export const migrateToCpswap = instruction(
      */
     metadataProgram: 27,
   },
-  unit
+  unit,
 );
 
 /**
@@ -1074,7 +1074,7 @@ export const sellExactIn = instruction(
     amountIn: u64,
     minimumAmountOut: u64,
     shareFeeRate: u64,
-  })
+  }),
 );
 
 /**
@@ -1177,7 +1177,7 @@ export const sellExactOut = instruction(
     amountOut: u64,
     maximumAmountIn: u64,
     shareFeeRate: u64,
-  })
+  }),
 );
 
 /**
@@ -1224,7 +1224,7 @@ export const updateConfig = instruction(
   struct({
     param: u8,
     value: u64,
-  })
+  }),
 );
 
 /**
@@ -1263,5 +1263,5 @@ export const updatePlatformConfig = instruction(
   },
   struct({
     param: PlatformConfigParam,
-  })
+  }),
 );
