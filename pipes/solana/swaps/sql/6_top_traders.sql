@@ -37,6 +37,13 @@ CREATE VIEW IF NOT EXISTS ${db_name}.trader_token_stats AS
 CREATE VIEW IF NOT EXISTS ${db_name}.top_traders
 AS
   WITH
+  	filtered_swaps AS (
+  		SELECT *
+  		FROM ${db_name}.solana_swaps_raw
+  		WHERE
+		     timestamp BETWEEN {start_date:DateTime} AND {end_date:DateTime} AND
+		    `token_b` IN {allowed_quote_tokens:Array(String)}
+  	),
     token_wins_loses AS (
       SELECT
         tts.wallet                         AS wallet,
@@ -50,12 +57,37 @@ AS
         allowed_quote_tokens={allowed_quote_tokens:Array(String)}
       ) tts
       GROUP BY tts.wallet
+    ),
+    account_buys_and_sells AS (
+      SELECT
+        token_a,
+        account,
+        minIf(timestamp, amount_a > 0) AS first_buy,
+        minIf(timestamp, amount_a < 0) AS first_sell,
+        maxIf(timestamp, amount_a < 0) AS last_sell
+      FROM filtered_swaps
+      GROUP BY token_a, account
+    ),
+    account_avg_holding_times AS (
+      SELECT
+        account,
+        count() AS unique_tokens,
+        avg(first_sell - first_buy) AS avg_holding_time_to_first_sell,
+        avg(last_sell - first_buy) AS avg_holding_time_to_last_sell
+      FROM
+        account_buys_and_sells
+      WHERE
+      --  Each selected token should have at least 1 buy tx
+      --  and all sell transactions should've happened AFTER the first buy tx
+        first_buy > '2000-01-01' AND
+        first_sell >= first_buy
+      GROUP BY account
     )
   -- MAIN QUERY
   SELECT
-    account AS wallet,
-    countIf(amount_a < 0) AS sells,
-    countIf(amount_a > 0) AS buys,
+    s.account AS wallet,
+    sumIf(sign, amount_a < 0) AS sells,
+    sumIf(sign, amount_a > 0) AS buys,
     count(distinct token_a) AS distinct_tokens,
     min(timestamp) AS first_tx,
     max(timestamp) AS last_tx,
@@ -67,13 +99,12 @@ AS
     any(twl.token_loses) AS token_loses,
     (tx_wins / (tx_wins + tx_loses)) AS tx_win_ratio,
     (token_wins / (token_wins + token_loses)) AS token_win_ratio,
-    (total_profit_usdc / total_cost_usdc) * 100 AS pnl_percent
+    (total_profit_usdc / total_cost_usdc) * 100 AS pnl_percent,
+    any(avg_holding_time_to_first_sell) AS avg_holding_time_to_first_sell,
+    any(avg_holding_time_to_last_sell) AS avg_holding_time_to_last_sell
   FROM
-    ${db_name}.solana_swaps_raw s
-  JOIN
-    token_wins_loses AS twl ON twl.wallet = wallet
-  WHERE
-    (timestamp BETWEEN {start_date:DateTime} AND {end_date:DateTime}) AND
-    `token_b` IN {allowed_quote_tokens:Array(String)}
+    filtered_swaps s
+    JOIN token_wins_loses AS twl ON twl.wallet = wallet
+    JOIN account_avg_holding_times aht ON aht.account = wallet
   GROUP BY wallet
   ORDER BY `pnl_percent` DESC;
