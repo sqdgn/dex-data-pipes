@@ -1,4 +1,6 @@
 import assert from 'assert';
+import _ from 'lodash';
+import { createLogger } from '../../pipes/utils';
 import { ClickHouseClient } from '@clickhouse/client';
 import { EvmSwap, ExtendedEvmSwap } from './swap_types';
 import { Network } from './networks';
@@ -10,32 +12,64 @@ import {
 } from './reference_tokens';
 import { LRUMap } from './util/LRUMap';
 import { DbSwap, TokenPositions } from './util/TokenPositions';
+import { Logger } from 'pino';
 
 export class PriceExtendStream {
   private readonly refTokenPriceHistoryLen = 10;
 
   private refPricesTokenUsdc = new Map<string, ReferenceTokenWithPrice[]>();
 
-  // Double map: wallet -> token -> TokenPositions (FIFO queue)
-  private walletPositions = new LRUMap<string, Map<string, TokenPositions>>(100_000);
+  // Double map: account (wallet) -> token -> TokenPositions (FIFO queue)
+  private accountPositions = new LRUMap<string, Map<string, TokenPositions>>(100_000);
 
   constructor(
     private client: ClickHouseClient,
     private network: Network,
+    private logger: Logger,
   ) {
     assert(referenceTokens[network], `reference tokens must be defined for ${network}`);
   }
 
-  private getOrCreateTokenPositions(account: string, token: string): TokenPositions {
-    let walletPositions = this.walletPositions.get(account);
-    if (!walletPositions) {
-      walletPositions = new Map();
-      this.walletPositions.set(account, walletPositions);
+  private async preloadMissingAccountPositions(swaps: EvmSwap[]) {
+    const filteredSwaps = swaps.filter(
+      // For now we don't track positions for swaps where neither of the toknes are reference tokens
+      (s) =>
+        referenceTokens[this.network].findIndex(
+          (refTok) =>
+            refTok.tokenAddress === s.tokenA.address || refTok.tokenAddress === s.tokenB.address,
+        ) !== -1,
+    );
+    const missingAccounts = _.uniq(filteredSwaps.map((s) => s.account)).filter(
+      (a) => !this.accountPositions.has(a),
+    );
+    const foundAccounts = new Set<string>();
+    // First we populate this.accountPositions with empty maps for
+    // each of the missing accounts, because we still want to mark all of
+    // them as "loaded into cache", even if they didn't make any swaps yet.
+    // (so that they are not redundantly re-fetched later)
+    for (const account of missingAccounts) {
+      this.accountPositions.set(account, new Map());
     }
-    let tokenPositions = walletPositions.get(token);
+    // Now we populate the cache with the actual data
+    for await (const dbSwap of this.refetchPositions(missingAccounts)) {
+      foundAccounts.add(dbSwap.account);
+      this.loadTokenPosition(dbSwap);
+    }
+    this.logger.debug(
+      `Preloaded positions for ${missingAccounts.length} missing accounts. ${foundAccounts.size} were found in db.`,
+    );
+  }
+
+  private getOrCreateTokenPositions(account: string, token: string): TokenPositions {
+    let accountPositions = this.accountPositions.get(account);
+    if (!accountPositions) {
+      accountPositions = new Map();
+      this.accountPositions.set(account, accountPositions);
+    }
+    let tokenPositions = accountPositions.get(token);
     if (!tokenPositions) {
       tokenPositions = new TokenPositions();
-      walletPositions.set(token, tokenPositions);
+      accountPositions.set(token, tokenPositions);
     }
     return tokenPositions;
   }
@@ -51,7 +85,7 @@ export class PriceExtendStream {
         price_token_a_usdc,
         price_token_b_usdc
       FROM
-        swaps_raw_account_gr
+        swaps_raw_account_gr FINAL
       WHERE
         sign > 0
         AND account IN {accounts:Array(String)}
@@ -68,7 +102,7 @@ export class PriceExtendStream {
   }
 
   private async getOrLoadTokenPositions(account: string, token: string): Promise<TokenPositions> {
-    const accountPositions = this.walletPositions.get(account);
+    const accountPositions = this.accountPositions.get(account);
     if (!accountPositions) {
       // Account positions not found in cache.
       // Try to reload from DB first...
@@ -245,6 +279,8 @@ export class PriceExtendStream {
         }
       },
       transform: async (swaps: ExtendedEvmSwap[], controller) => {
+        // probably causing this exception https://github.com/ClickHouse/ClickHouse/issues/36783
+        //        await this.preloadMissingAccountPositions(swaps);
         controller.enqueue(await Promise.all(swaps.map((s) => this.processSwap(s))));
       },
     });

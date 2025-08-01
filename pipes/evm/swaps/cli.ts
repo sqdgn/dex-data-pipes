@@ -51,7 +51,7 @@ async function main() {
 
   const stream = await ds.stream();
   for await (const swaps of stream.pipeThrough(
-    await new PriceExtendStream(clickhouse, config.network).pipe(),
+    await new PriceExtendStream(clickhouse, config.network, logger).pipe(),
   )) {
     await clickhouse.insert({
       table: `swaps_raw`,

@@ -99,6 +99,18 @@ CREATE TABLE IF NOT EXISTS swaps_raw_pool_gr
     token_a_decimals    UInt8,
     token_b_decimals    UInt8,
     a_b_swapped         Bool,
+    -- trader stats
+    token_a_balance     Float64,
+    token_b_balance     Float64,
+    token_a_profit_usdc Float64,
+    token_b_profit_usdc Float64,
+    token_a_cost_usdc   Float64,
+    token_b_cost_usdc   Float64,
+    token_a_wins        UInt32,
+    token_b_wins        UInt32,
+    token_a_loses       UInt32,
+    token_b_loses       UInt32,
+    -- end trader stats
     sign                Int8
 ) ENGINE = CollapsingMergeTree(sign)
       PARTITION BY toYYYYMM(timestamp) -- DATA WILL BE SPLIT BY MONTH
@@ -271,14 +283,14 @@ CREATE VIEW IF NOT EXISTS trader_token_stats AS
 	SELECT
 		s1.account                          AS account,
 		s1.token_a                          AS token,
-		countIf(amount_a > 0)				AS sells,
-		countIf(amount_a < 0)				AS buys,
-		sumIf(amount_a, amount_a > 0)		AS sold_amount_token,
-		sumIf(ABS(amount_a), amount_a < 0)  AS bought_amount_token,
+		sumIf(sign, amount_a > 0)			AS sells,
+		sumIf(sign, amount_a < 0)			AS buys,
+		sumIf(amount_a*sign, amount_a > 0)		AS sold_amount_token,
+		sumIf(ABS(amount_a)*sign, amount_a < 0)  AS bought_amount_token,
 		(sold_amount_token / bought_amount_token)      AS sold_to_bought_ratio,
 		max(s1.token_a_wins)               AS tx_wins,
 		max(s1.token_a_loses)              AS tx_loses,
-		sum(s1.token_a_profit_usdc)        AS total_profit_usdc
+		sum(s1.token_a_profit_usdc * sign) AS total_profit_usdc
 	FROM swaps_raw s1
 	WHERE
 		(s1.timestamp BETWEEN {start_date:DateTime} AND {end_date:DateTime})
@@ -303,15 +315,15 @@ AS
       GROUP BY tts.account
     )
 SELECT account, 
-	count() AS tx_count,
-	avg(ABS(amount_a)*price_token_a_usdc) AS avg_trade_usdc,
-	countIf(amount_a < 0) AS token_a_buys,
-	countIf(amount_a > 0) AS token_a_sells,
+	sum(sign) AS tx_count,
+	avg(ABS(amount_a)*price_token_a_usdc*sign) AS avg_trade_usdc,
+	sumIf(sign, amount_a < 0) AS token_a_buys,
+	sumIf(sign, amount_a > 0) AS token_a_sells,
 	count(distinct token_a) AS distinct_token_a,
-    sum(token_a_cost_usdc) AS total_cost_usdc,
-    sum(token_a_profit_usdc) AS total_profit_usdc,
-    sum(token_a_wins) AS tx_wins,
-    sum(token_a_loses) AS tx_loses,
+    sum(token_a_cost_usdc*sign) AS total_cost_usdc,
+    sum(token_a_profit_usdc*sign) AS total_profit_usdc,
+    sum(token_a_wins*sign) AS tx_wins,
+    sum(token_a_loses*sign) AS tx_loses,
     any(twl.token_wins) AS token_wins,
     any(twl.token_loses) AS token_loses,
     (tx_wins / (tx_wins + tx_loses)) AS tx_win_ratio,
