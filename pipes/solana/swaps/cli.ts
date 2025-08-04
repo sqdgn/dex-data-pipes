@@ -19,7 +19,9 @@ async function main() {
     capture_enhanced_stack_trace: true,
     clickhouse_settings: {
       http_receive_timeout: 900,
+      receive_timeout: 900,
     },
+    request_timeout: 900_000,
     // log: {
     //   level: ClickHouseLogLevel.TRACE,
     // },
