@@ -1,6 +1,6 @@
 import assert from 'assert';
 import dotenv from 'dotenv';
-import { Network } from '../../streams/evm_swaps/networks';
+import { Network, NetworkValues } from '../../streams/evm_swaps/networks';
 
 dotenv.config();
 
@@ -28,19 +28,24 @@ const PORTAL = {
   ethereum: {
     url: 'https://portal.sqd.dev/datasets/ethereum-mainnet',
   },
+  zora: {
+    url: 'https://portal.sqd.dev/datasets/zora-mainnet',
+  },
 };
 
 export function getConfig() {
-  const network =
-    process.env.NETWORK === 'ethereum' || process.env.NETWORK === 'base'
-      ? process.env.NETWORK
-      : 'ethereum';
+  const network = (process.env.NETWORK || '') as Network;
+  assert(NetworkValues.includes(network), 'unsupported network is specified in .env');
+
+  process.env.NETWORK === 'ethereum' || process.env.NETWORK === 'base'
+    ? process.env.NETWORK
+    : 'ethereum';
 
   const blockFrom = process.env.BLOCK_FROM ? parseInt(process.env.BLOCK_FROM) : 0;
   assert(process.env.DB_PATH, 'DB_PATH param must be specified');
 
   return {
-    network: network as Network,
+    network: network,
     factory: CONTRACTS.factory[network],
     dbPath: process.env.DB_PATH,
     portal: PORTAL[network],

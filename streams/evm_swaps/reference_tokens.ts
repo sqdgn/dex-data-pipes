@@ -13,11 +13,13 @@ export type ReferenceTokenWithPrice = ReferenceToken & {
 export const USDC_TOKEN_ADDRESS: Record<Network, string> = {
   base: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'.toLowerCase(),
   ethereum: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'.toLowerCase(),
+  zora: '0xCccCCccc7021b32EBb4e8C08314bD62F7c653EC4'.toLowerCase(),
 };
 
 export const USDC_POOL_ADDRESS: Record<Network, string> = {
   base: '0xd0b53d9277642d899df5c87a3966a349a798f224'.toLowerCase(),
   ethereum: '0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640'.toLowerCase(),
+  zora: '0xbC59f8F3b275AA56A90D13bAE7cCe5e6e11A3b17'.toLowerCase(),
 };
 
 // order is important. The first token in the list, then it is more "referency".
@@ -74,6 +76,17 @@ export const referenceTokens: Record<Network, ReferenceToken[]> = {
     {
       tokenAddress: '0x8d0D000Ee44948FC98c9B98A4FA4921476f08B0d'.toLowerCase(), // USD1
       poolAddress: '0x1e1dfff79d95725aaafd6b47af4fbc28d859ce28'.toLowerCase(),
+    },
+  ],
+  zora: [
+    { tokenAddress: USDC_TOKEN_ADDRESS.zora, poolAddress: USDC_POOL_ADDRESS.zora },
+    {
+      tokenAddress: '0x4200000000000000000000000000000000000006', // WETH
+      poolAddress: USDC_POOL_ADDRESS.zora,
+    },
+    {
+      tokenAddress: '0x078540eECC8b6d89949c9C7d5e8E91eAb64f6696'.toLowerCase(), // Imagine
+      poolAddress: '0x86c2Fd1C99D8b7FF541767A4748B2Eb38Fd43dA8'.toLowerCase(),
     },
   ],
 };
