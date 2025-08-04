@@ -17,6 +17,9 @@ async function main() {
   Error.stackTraceLimit = 1000;
   const clickhouse = await createClickhouseClient({
     capture_enhanced_stack_trace: true,
+    clickhouse_settings: {
+      http_receive_timeout: 900,
+    },
     // log: {
     //   level: ClickHouseLogLevel.TRACE,
     // },
