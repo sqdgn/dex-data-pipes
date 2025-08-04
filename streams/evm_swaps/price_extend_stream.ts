@@ -13,6 +13,7 @@ import {
 import { LRUMap } from './util/LRUMap';
 import { DbSwap, TokenPositions } from './util/TokenPositions';
 import { Logger } from 'pino';
+import { inspect } from 'util';
 
 export class PriceExtendStream {
   private readonly refTokenPriceHistoryLen = 10;
@@ -50,14 +51,21 @@ export class PriceExtendStream {
     for (const account of missingAccounts) {
       this.accountPositions.set(account, new Map());
     }
-    // Now we populate the cache with the actual data
-    for await (const dbSwap of this.refetchPositions(missingAccounts)) {
-      foundAccounts.add(dbSwap.account);
-      this.loadTokenPosition(dbSwap);
+    const CHUNK_SIZE = 100;
+    // if no chunks, https://github.com/ClickHouse/ClickHouse/issues/36783 will appear (query too huge)
+    for (let i = 0; i < missingAccounts.length; i += CHUNK_SIZE) {
+      const chunk = missingAccounts.slice(i, i + CHUNK_SIZE);
+      // Now we populate the cache with the actual data
+      let foundAccCount = 0;
+      for await (const dbSwap of this.refetchPositions(chunk)) {
+        foundAccounts.add(dbSwap.account);
+        this.loadTokenPosition(dbSwap);
+        foundAccCount++;
+      }
+      this.logger.debug(
+        `Preloaded positions for ${chunk.length} missing accounts. ${foundAccCount} were found in db.`,
+      );
     }
-    this.logger.debug(
-      `Preloaded positions for ${missingAccounts.length} missing accounts. ${foundAccounts.size} were found in db.`,
-    );
   }
 
   private getOrCreateTokenPositions(account: string, token: string): TokenPositions {
@@ -190,8 +198,8 @@ export class PriceExtendStream {
     const refToTokenInfo = referenceTokens[this.network]?.find(
       (t) => t.tokenAddress === swap.tokenB.address,
     );
-    if (!refToTokenInfo) {
-      // not a swap to reference token, cannot calculate price
+    if (!refToTokenInfo || swap.tokenA.amount_raw === 0n || swap.tokenB.amount_raw === 0n) {
+      // not a swap to reference token, or either amount is zero – cannot calculate price
       swap.price_token_a_usdc = 0;
       swap.price_token_b_usdc = 0;
       return swap;
@@ -245,8 +253,42 @@ export class PriceExtendStream {
       // inserted latest price is at the beginning
     }
 
-    const positionsA = await this.getOrLoadTokenPositions(swap.account, swap.tokenA.address);
-    const positionsB = await this.getOrLoadTokenPositions(swap.account, swap.tokenB.address);
+    const retry = async <T>(func: () => Promise<T>): Promise<T> => {
+      let res: Awaited<T>;
+      let retries = 0;
+      while (true) {
+        try {
+          res = await func();
+          if (retries > 0) {
+            this.logger.info('retry success');
+          }
+          return res;
+        } catch (err) {
+          if (
+            err instanceof Error &&
+            'code' in err &&
+            (err.code === 'ECONNRESET' || err.code === 'EPIPE')
+          ) {
+            retries++;
+            this.logger.warn(`socket error. Retrying ${retries}`);
+
+            if (retries > 5) {
+              this.logger.warn(`socket error. Max errors reached`);
+              throw err;
+            }
+          } else {
+            throw err;
+          }
+        }
+      }
+    };
+
+    const positionsA = await retry(
+      async () => await this.getOrLoadTokenPositions(swap.account, swap.tokenA.address),
+    );
+    const positionsB = await retry(
+      async () => await this.getOrLoadTokenPositions(swap.account, swap.tokenB.address),
+    );
 
     if (swap.tokenA.amount_human < 0) {
       // user withdraws A from a pool and deposits B to pool, so it means, is entry in A and exit on B
@@ -279,9 +321,19 @@ export class PriceExtendStream {
         }
       },
       transform: async (swaps: ExtendedEvmSwap[], controller) => {
-        // probably causing this exception https://github.com/ClickHouse/ClickHouse/issues/36783
-        //        await this.preloadMissingAccountPositions(swaps);
-        controller.enqueue(await Promise.all(swaps.map((s) => this.processSwap(s))));
+        await this.preloadMissingAccountPositions(swaps);
+        controller.enqueue(
+          await Promise.all(
+            swaps.map(async (s) => {
+              try {
+                return await this.processSwap(s);
+              } catch (err) {
+                this.logger.error(`processSwap: ${inspect(s)}`);
+                throw err;
+              }
+            }),
+          ),
+        );
       },
     });
   }

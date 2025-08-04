@@ -49,8 +49,11 @@ export class TokenPositions {
   }
 
   public entry(amount: number, price: number) {
-    assert(amount >= 0, 'entry amount must be more than zero');
-    if (amount === 0 || price === 0) {
+    assert(
+      amount >= 0 || this.closeTo(amount, 0),
+      `entry amount must be non-negative, but it is ${amount}`,
+    );
+    if (this.closeTo(amount, 0) || this.closeTo(price, 0)) {
       // Ignore if amount or price == 0
       return;
     }
@@ -70,8 +73,11 @@ export class TokenPositions {
   }
 
   public exit(amount: number, price: number): ExitSummary {
-    assert(amount >= 0, 'exit amount must be greater/equal to zero');
-    if (amount === 0 || price === 0) {
+    assert(
+      amount >= 0 || this.closeTo(0, amount),
+      `exit amount must be non-negative, but it is ${amount}`,
+    );
+    if (this.closeTo(amount, 0) || this.closeTo(price, 0)) {
       // Ignore if amount or price == 0
       return {
         entryCostUsdc: 0,
