@@ -2,7 +2,7 @@ import _ from 'lodash';
 
 export type TokenPosition = {
   amount: number;
-  price: number;
+  priceUsdc: number;
   realizedPnL: number;
 };
 
@@ -47,12 +47,12 @@ export class TokenPositions {
     return this;
   }
 
-  public entry(amount: number, price: number) {
-    if (amount === 0 || price === 0) {
+  public entry(amount: number, priceUsdc: number) {
+    if (amount === 0 || priceUsdc === 0) {
       // Ignore if amount or price == 0
       return;
     }
-    this.positions.push({ amount, price, realizedPnL: 0 });
+    this.positions.push({ amount, priceUsdc, realizedPnL: 0 });
   }
 
   public get totalBalance() {
@@ -67,8 +67,8 @@ export class TokenPositions {
     return this._loses;
   }
 
-  public exit(amount: number, price: number): ExitSummary {
-    if (amount === 0 || price === 0) {
+  public exit(amount: number, priceUsdc: number): ExitSummary {
+    if (amount === 0 || priceUsdc === 0) {
       // Ignore if amount or price == 0
       return {
         entryCostUsdc: 0,
@@ -82,11 +82,11 @@ export class TokenPositions {
     while (!this.closeTo(totalRealizedAmount, amount) && this.positions.length) {
       const position = this.positions[0];
       const realizedAmount = Math.min(amount - totalRealizedAmount, position.amount);
-      const entryCost = realizedAmount * position.price;
-      const realizedPnL = realizedAmount * price - entryCost;
-      position.realizedPnL += realizedPnL;
-      totalProfitUsdc += realizedPnL;
-      totalEntryCostUsdc += entryCost;
+      const entryCostUsdc = realizedAmount * position.priceUsdc;
+      const realizedPnLUsdc = realizedAmount * priceUsdc - entryCostUsdc;
+      position.realizedPnL += realizedPnLUsdc;
+      totalProfitUsdc += realizedPnLUsdc;
+      totalEntryCostUsdc += entryCostUsdc;
       totalRealizedAmount += realizedAmount;
       position.amount -= realizedAmount;
       if (this.closeTo(position.amount, 0)) {
@@ -95,6 +95,7 @@ export class TokenPositions {
         } else {
           this._loses += 1;
         }
+        // TODO: Optimize
         this.positions.shift();
       }
     }

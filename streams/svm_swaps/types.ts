@@ -144,9 +144,13 @@ export type SolanaSwapCore = {
   output: SwappedTokenData;
   // Address of the pool
   poolAddress: string;
-  // TODO: `slippage` is nullable, because it's not implemented yet for Meteora.
+  // Slippage percentage
+  // Difference between expected swap input/output amount calculated from
+  // pool price right before the swap and actual input/output amount
+  // (affected by swap's price impact)
+  // TODO: nullable, because it's not implemented yet for Meteora.
   // Once implemented the value should be required.
-  slippage: number | null;
+  slippagePct: number | null;
 };
 
 export type SolanaSwap = SolanaSwapCore & {

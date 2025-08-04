@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS solana_swaps_raw
     transaction_index                  UInt16,
     instruction_address                Array (UInt16),
     transaction_hash                   String,
-    slippage                           Float64,
+    slippage_pct                       Float64,
     pool_address                       String,
     pool_token_a_reserve               Float64,
     pool_token_b_reserve               Float64,

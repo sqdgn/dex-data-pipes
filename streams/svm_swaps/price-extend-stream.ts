@@ -30,7 +30,7 @@ type TokenPriceDbRow = {
   best_pool_address: string | null;
   pool_address: string;
   token: string;
-  price: number;
+  price_usdc: number;
 };
 
 function toStartOfPrevHour(date: Date) {
@@ -71,7 +71,7 @@ export class PriceExtendStream {
             token,
             pool_address,
             best_pool_address,
-            price
+            price_usdc
           FROM tokens_with_last_prices(
             min_timestamp={minTimestamp:DateTime},
             max_timestamp={maxTimestamp:DateTime}
@@ -99,7 +99,7 @@ export class PriceExtendStream {
       this.tokenPrices.set(row.token, {
         isBestPricingPoolSelected: row.best_pool_address === row.pool_address,
         poolAddress: row.pool_address,
-        priceUsdc: row.price,
+        priceUsdc: row.price_usdc,
       });
     }
     for (const token of USD_STABLECOINS) {
@@ -213,8 +213,8 @@ export class PriceExtendStream {
     const amountA = Number(tokenA.amount) / 10 ** tokenA.decimals;
     const amountB = Number(tokenB.amount) / 10 ** tokenB.decimals;
 
-    let priceA = 0;
-    let priceB = 0;
+    let priceAUsdc = 0;
+    let priceBUsdc = 0;
 
     let tokenAPriceData = this.tokenPrices.get(tokenA.mintAcc);
     const tokenBPriceData = this.tokenPrices.get(tokenB.mintAcc);
@@ -237,8 +237,8 @@ export class PriceExtendStream {
       this.tokenPrices.set(tokenA.mintAcc, tokenAPriceData);
     }
 
-    priceA = tokenAPriceData?.priceUsdc || 0;
-    priceB = tokenBPriceData?.priceUsdc || 0;
+    priceAUsdc = tokenAPriceData?.priceUsdc || 0;
+    priceBUsdc = tokenBPriceData?.priceUsdc || 0;
 
     const extTokenA: ExtendedSwappedTokenData = this.initExtendedSwappedTokenData(tokenA);
     const extTokenB: ExtendedSwappedTokenData = this.initExtendedSwappedTokenData(tokenB);
@@ -257,16 +257,16 @@ export class PriceExtendStream {
 
       if (tokenAIsOutputToken) {
         // TOKEN A - ENTRY
-        positions.a.entry(amountA, priceA);
+        positions.a.entry(amountA, priceAUsdc);
         // TOKEN B - EXIT
-        const exitSummary = positions.b.exit(amountB, priceB);
+        const exitSummary = positions.b.exit(amountB, priceBUsdc);
         extTokenB.positionExitSummary = exitSummary;
       } else {
         // TOKEN A - EXIT
-        const exitSummary = positions.a.exit(amountA, priceA);
+        const exitSummary = positions.a.exit(amountA, priceAUsdc);
         extTokenA.positionExitSummary = exitSummary;
         // TOKEN B - ENTRY
-        positions.b.entry(amountB, priceB);
+        positions.b.entry(amountB, priceBUsdc);
       }
       extTokenA.balance = positions.a.totalBalance;
       extTokenB.balance = positions.b.totalBalance;

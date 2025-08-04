@@ -36,7 +36,7 @@ export function handleWhirlpool(ins: Instruction, block: Block): SolanaSwapCore 
   const swapPrice =
     tokenIn && tokenOut && swapEvent ? getPoolPrice(swapEvent, tokenIn, tokenOut) : null;
 
-  const slippage =
+  const slippagePct =
     tokenIn && tokenOut && swapPrice && swapEvent
       ? getSlippage(tokenIn, tokenOut, inputTokenAmount, outputTokenAmount, swapEvent, swapPrice)
       : null;
@@ -71,7 +71,7 @@ export function handleWhirlpool(ins: Instruction, block: Block): SolanaSwapCore 
       decimals: tokenOut.postDecimals,
       reserves: reserveOut,
     },
-    slippage,
+    slippagePct,
   };
 }
 

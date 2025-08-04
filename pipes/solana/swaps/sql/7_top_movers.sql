@@ -8,9 +8,9 @@ CREATE TABLE IF NOT EXISTS daily_top_movers (
     token_created_at     DateTime CODEC (DoubleDelta, ZSTD),
     pool_address         String,
     dex                  LowCardinality(String),
-    open_price           AggregateFunction(argMinState, Float64, Tuple(DateTime, UInt16, Array (UInt16))),
-    close_price          AggregateFunction(argMaxState, Float64, Tuple(DateTime, UInt16, Array (UInt16))),
-    volume               SimpleAggregateFunction(sum, Float64)
+    open_price_usdc      AggregateFunction(argMinState, Float64, Tuple(DateTime, UInt16, Array (UInt16))),
+    close_price_usdc     AggregateFunction(argMaxState, Float64, Tuple(DateTime, UInt16, Array (UInt16))),
+    volume_usdc          SimpleAggregateFunction(sum, Float64)
 ) ENGINE = AggregatingMergeTree()
   ORDER BY (day, token_address, pool_address)
   TTL `day` + INTERVAL 1 YEAR;
@@ -28,16 +28,16 @@ CREATE MATERIALIZED VIEW IF NOT EXISTS daily_top_movers_mv
 	      any(`token_a_creation_date`)                               AS `token_created_at`,
 	      `pool_address`                                             AS `pool_address`,
 	      any(`dex`)                                                 AS `dex`,
-	      argMinState(`token_a_usdc_price`, `swap_order`)            AS `open_price`,
-	      argMaxState(`token_a_usdc_price`, `swap_order`)            AS `close_price`,
-	      sumSimpleState(abs(amount_a * token_a_usdc_price) * sign)  AS `volume`
+	      argMinState(`token_a_usdc_price`, `swap_order`)            AS `open_price_usdc`,
+	      argMaxState(`token_a_usdc_price`, `swap_order`)            AS `close_price_usdc`,
+	      sumSimpleState(abs(amount_a * token_a_usdc_price) * sign)  AS `volume_usdc`
 	    FROM
 	      `solana_swaps_raw` AS `swap`
 	    WHERE
 	      `token_a_usdc_price` > 0 AND
 	      `token_b` IN allowed_quote_tokens() AND
 	--      Filter out swaps that affect the price too greatly (>10%)
-	      slippage < 10 AND
+	      slippage_pct < 10 AND
 	--      Filter out negligable amount swaps
 	      abs(amount_a * token_a_usdc_price) >= 0.01
 	    GROUP BY `day`, `token_a`, `pool_address`
@@ -67,13 +67,13 @@ CREATE OR REPLACE VIEW ${db_name}.top_movers AS
     `end_date`,
     `token_address`,
     `pool_address`,
-    any(`dex`)                                          AS `dex`,
-    any(`token_symbol`)                                 AS `token_symbol`,
-    now() - any(`token_created_at`)                     AS `age_sec`,
-    sum(volume)                                         AS `volume`,
-    argMinMerge(`open_price`)                           AS `open_price`,
-    argMaxMerge(`close_price`)                          AS `close_price`,
-    (`close_price` - `open_price`) / `open_price` * 100 AS `grow_pct`
+    any(`dex`)                                                         AS `dex`,
+    any(`token_symbol`)                                                AS `token_symbol`,
+    now() - any(`token_created_at`)                                    AS `age_sec`,
+    sum(volume_usdc)                                                   AS `volume_usdc`,
+    argMinMerge(`open_price_usdc`)                                     AS `open_price_usdc`,
+    argMaxMerge(`close_price_usdc`)                                    AS `close_price_usdc`,
+    (`close_price_usdc` - `open_price_usdc`) / `open_price_usdc` * 100 AS `grow_pct`
   FROM
     ${db_name}.`daily_top_movers` AS `daily_top_movers`
     INNER JOIN ${db_name}.`tokens_with_best_quote_pools`(

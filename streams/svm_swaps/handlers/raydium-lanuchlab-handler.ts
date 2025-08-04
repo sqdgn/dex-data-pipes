@@ -142,7 +142,7 @@ export function handleSwap(
       reserves: reserveOut.preAmount,
     },
     poolAddress: poolAcc,
-    slippage: (isBuy ? 100 : -100) * actuallyPaidPrice.div(poolPriceBefore).sub(1).toNumber(),
+    slippagePct: (isBuy ? 100 : -100) * actuallyPaidPrice.div(poolPriceBefore).sub(1).toNumber(),
     type: 'raydium_launchlab',
   };
 }
