@@ -5,6 +5,7 @@ import { createClickhouseClient, ensureTables, toUnixTime } from '../../clickhou
 import { createLogger } from '../../utils';
 import { getConfig } from '../config';
 import { inspect } from 'node:util';
+import { chRetry } from '../../../common/chRetry';
 
 const config = getConfig();
 
@@ -63,62 +64,67 @@ async function main() {
     await new PriceExtendStream(clickhouse, config.network, logger).pipe(),
   )) {
     try {
-      await clickhouse.insert({
-        table: `swaps_raw`,
-        values: swaps.map((s) => {
-          const obj = {
-            factory_address: s.factory.address,
-            network: config.network,
-            dex_name: s.dexName,
-            protocol: s.protocol,
-            block_number: s.block.number,
-            transaction_hash: s.transaction.hash,
-            transaction_index: s.transaction.index,
-            log_index: s.transaction.logIndex,
-            account: s.account,
-            sender: s.sender,
-            recipient: s.recipient,
-            token_a: s.tokenA.address,
-            token_a_decimals: s.tokenA.decimals,
-            token_a_symbol: s.tokenA.symbol,
-            token_b: s.tokenB.address,
-            token_b_decimals: s.tokenB.decimals,
-            token_b_symbol: s.tokenB.symbol,
-            price_token_a_usdc: s.price_token_a_usdc,
-            price_token_b_usdc: s.price_token_b_usdc,
-            amount_a_raw: s.tokenA.amount_raw.toString(),
-            amount_b_raw: s.tokenB.amount_raw.toString(),
-            amount_a: s.tokenA.amount_human.toString(),
-            amount_b: s.tokenB.amount_human.toString(),
-            pool_address: s.pool.address,
-            pool_tick_spacing: s.pool.tick_spacing,
-            pool_fee_creation: s.pool.fee,
-            pool_stable: s.pool.stable,
-            pool_liquidity:
-              s.pool.liquidity !== undefined ? s.pool.liquidity.toString() : undefined,
-            pool_sqrt_price_x96:
-              s.pool.sqrtPriceX96 !== undefined ? s.pool.sqrtPriceX96.toString() : undefined,
-            pool_tick: s.pool.tick,
-            timestamp: toUnixTime(s.timestamp),
-            a_b_swapped: s.a_b_swapped,
-            // trader stats
-            token_a_balance: s.token_a_balance,
-            token_b_balance: s.token_b_balance,
-            token_a_profit_usdc: s.token_a_profit_usdc,
-            token_b_profit_usdc: s.token_b_profit_usdc,
-            token_a_cost_usdc: s.token_a_cost_usdc,
-            token_b_cost_usdc: s.token_b_cost_usdc,
-            token_a_wins: s.token_a_wins,
-            token_b_wins: s.token_b_wins,
-            token_a_loses: s.token_a_loses,
-            token_b_loses: s.token_b_loses,
-            // end trader stats
-            sign: 1,
-          };
-          return obj;
-        }),
-        format: 'JSONEachRow',
-      });
+      await chRetry(
+        logger,
+        async () =>
+          await clickhouse.insert({
+            table: `swaps_raw`,
+            values: swaps.map((s) => {
+              const obj = {
+                factory_address: s.factory.address,
+                network: config.network,
+                dex_name: s.dexName,
+                protocol: s.protocol,
+                block_number: s.block.number,
+                transaction_hash: s.transaction.hash,
+                transaction_index: s.transaction.index,
+                log_index: s.transaction.logIndex,
+                account: s.account,
+                sender: s.sender,
+                recipient: s.recipient,
+                token_a: s.tokenA.address,
+                token_a_decimals: s.tokenA.decimals,
+                token_a_symbol: s.tokenA.symbol,
+                token_b: s.tokenB.address,
+                token_b_decimals: s.tokenB.decimals,
+                token_b_symbol: s.tokenB.symbol,
+                price_token_a_usdc: s.price_token_a_usdc,
+                price_token_b_usdc: s.price_token_b_usdc,
+                amount_a_raw: s.tokenA.amount_raw.toString(),
+                amount_b_raw: s.tokenB.amount_raw.toString(),
+                amount_a: s.tokenA.amount_human.toString(),
+                amount_b: s.tokenB.amount_human.toString(),
+                pool_address: s.pool.address,
+                pool_tick_spacing: s.pool.tick_spacing,
+                pool_fee_creation: s.pool.fee,
+                pool_stable: s.pool.stable,
+                pool_liquidity:
+                  s.pool.liquidity !== undefined ? s.pool.liquidity.toString() : undefined,
+                pool_sqrt_price_x96:
+                  s.pool.sqrtPriceX96 !== undefined ? s.pool.sqrtPriceX96.toString() : undefined,
+                pool_tick: s.pool.tick,
+                timestamp: toUnixTime(s.timestamp),
+                a_b_swapped: s.a_b_swapped,
+                // trader stats
+                token_a_balance: s.token_a_balance,
+                token_b_balance: s.token_b_balance,
+                token_a_profit_usdc: s.token_a_profit_usdc,
+                token_b_profit_usdc: s.token_b_profit_usdc,
+                token_a_cost_usdc: s.token_a_cost_usdc,
+                token_b_cost_usdc: s.token_b_cost_usdc,
+                token_a_wins: s.token_a_wins,
+                token_b_wins: s.token_b_wins,
+                token_a_loses: s.token_a_loses,
+                token_b_loses: s.token_b_loses,
+                // end trader stats
+                sign: 1,
+              };
+              return obj;
+            }),
+            format: 'JSONEachRow',
+          }),
+        'transfer insert',
+      );
     } catch (err) {
       logger.error('insert err:', inspect(err));
       throw err;

@@ -31,6 +31,7 @@ async function main() {
       database: process.env.CLICKHOUSE_DB,
       id: `erc20_transfers` + (onlyFirstTransfers ? '_onlyFirstTransfers' : ''),
       onRollback: async ({ state, latest }) => {
+        logger.info(`ROLLBACK called. latest.timestamp: ${latest.timestamp}`);
         if (!latest.timestamp) {
           return; // fresh table
         }
@@ -38,6 +39,7 @@ async function main() {
           table: `erc20_transfers`,
           where: `timestamp > ${latest.timestamp}`,
         });
+        logger.info(`ROLLBACK finished. Rows are removed`);
       },
     }),
   });

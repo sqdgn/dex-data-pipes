@@ -14,6 +14,7 @@ import { LRUMap } from './util/LRUMap';
 import { DbSwap, TokenPositions } from './util/TokenPositions';
 import { Logger } from 'pino';
 import { inspect } from 'util';
+import { chRetry } from '../../common/chRetry';
 
 export class PriceExtendStream {
   private readonly refTokenPriceHistoryLen = 10;
@@ -93,7 +94,7 @@ export class PriceExtendStream {
         price_token_a_usdc,
         price_token_b_usdc
       FROM
-        swaps_raw_account_gr FINAL
+        swaps_raw_account_gr
       WHERE
         sign > 0
         AND account IN {accounts:Array(String)}
@@ -198,8 +199,13 @@ export class PriceExtendStream {
     const refToTokenInfo = referenceTokens[this.network]?.find(
       (t) => t.tokenAddress === swap.tokenB.address,
     );
-    if (!refToTokenInfo || swap.tokenA.amount_raw === 0n || swap.tokenB.amount_raw === 0n) {
-      // not a swap to reference token, or either amount is zero – cannot calculate price
+
+    if (
+      !refToTokenInfo || // not a swap to reference token
+      swap.tokenA.amount_raw === 0n || // or either amount is zero – cannot calculate price
+      swap.tokenB.amount_raw === 0n ||
+      swap.tokenA.amount_raw < 0n === swap.tokenB.amount_raw < 0n // both amounts of same sign - error but it happens
+    ) {
       swap.price_token_a_usdc = 0;
       swap.price_token_b_usdc = 0;
       return swap;
@@ -253,40 +259,12 @@ export class PriceExtendStream {
       // inserted latest price is at the beginning
     }
 
-    const retry = async <T>(func: () => Promise<T>): Promise<T> => {
-      let res: Awaited<T>;
-      let retries = 0;
-      while (true) {
-        try {
-          res = await func();
-          if (retries > 0) {
-            this.logger.info('retry success');
-          }
-          return res;
-        } catch (err) {
-          if (
-            err instanceof Error &&
-            'code' in err &&
-            (err.code === 'ECONNRESET' || err.code === 'EPIPE')
-          ) {
-            retries++;
-            this.logger.warn(`socket error. Retrying ${retries}`);
-
-            if (retries > 5) {
-              this.logger.warn(`socket error. Max errors reached`);
-              throw err;
-            }
-          } else {
-            throw err;
-          }
-        }
-      }
-    };
-
-    const positionsA = await retry(
+    const positionsA = await chRetry(
+      this.logger,
       async () => await this.getOrLoadTokenPositions(swap.account, swap.tokenA.address),
     );
-    const positionsB = await retry(
+    const positionsB = await chRetry(
+      this.logger,
       async () => await this.getOrLoadTokenPositions(swap.account, swap.tokenB.address),
     );
 
