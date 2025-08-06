@@ -44,6 +44,9 @@ function toStartOfPrevHour(date: Date) {
 // most recently used accounts.
 const ACCOUNT_POSITIONS_MAP_CAPACITY = 100_000;
 
+// Max. Number of accounts to preload positions for in a single query
+const PRELOAD_ACCOUNT_POSITIONS_BATCH_SIZE = 50;
+
 export class PriceExtendStream {
   private logger: Logger;
   // Double map: userAcc -> tokenMintAcc -> TokenPositions (FIFO queue)
@@ -114,28 +117,36 @@ export class PriceExtendStream {
   }
 
   private async *refetchPositions(accounts: string[]) {
-    const result = await this.client.query({
-      query: `SELECT
-        account,
-        token_a,
-        token_b,
-        amount_a,
-        amount_b,
-        token_a_usdc_price,
-        token_b_usdc_price
-      FROM
-        account_token_positions
-      WHERE
-        sign > 0
-        AND account IN {accounts:Array(String)}
-      ORDER BY (account, block_number, transaction_index, instruction_address) ASC`,
-      query_params: { accounts },
-      format: 'JSONEachRow',
-    });
+    for (const accountsChunk in _.chunk(accounts, PRELOAD_ACCOUNT_POSITIONS_BATCH_SIZE)) {
+      const result = await timeIt(
+        this.logger,
+        'Fetching account positions chunk',
+        () =>
+          this.client.query({
+            query: `SELECT
+              account,
+              token_a,
+              token_b,
+              amount_a,
+              amount_b,
+              token_a_usdc_price,
+              token_b_usdc_price
+            FROM
+              account_token_positions
+            WHERE
+              sign > 0
+              AND account IN {accounts:Array(String)}
+            ORDER BY (account, block_number, transaction_index, instruction_address) ASC`,
+            query_params: { accounts: accountsChunk },
+            format: 'JSONEachRow',
+          }),
+        { chunkSize: accountsChunk },
+      );
 
-    for await (const rows of result.stream<DbSwap>()) {
-      for (const row of rows) {
-        yield row.json();
+      for await (const rows of result.stream<DbSwap>()) {
+        for (const row of rows) {
+          yield row.json();
+        }
       }
     }
   }
