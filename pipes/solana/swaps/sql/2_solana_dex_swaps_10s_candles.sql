@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS solana_dex_swaps_10s_candles (
     avg_slippage            AggregateFunction(avgState, Float64),
     max_pool_tvl            SimpleAggregateFunction(max, Float64)
 ) ENGINE = AggregatingMergeTree()
-  ORDER BY (timestamp, pool_address, token_a, token_b, dex)
+  ORDER BY (pool_address, token_a, token_b, dex, timestamp)
   TTL timestamp + INTERVAL 30 DAY;
 
 -- Candles - materialized view
@@ -52,4 +52,4 @@ SELECT toStartOfInterval(timestamp, INTERVAL 10 SECOND)                 AS times
 FROM solana_swaps_raw original
 -- Temporarily we filter out that swaps completely
 WHERE slippage < 10 and abs(amount_a * token_a_usdc_price) >= 0.01 and amount_a != 0 and amount_b != 0
-GROUP BY timestamp, token_a, token_b, dex, pool_address;
+GROUP BY pool_address, token_a, token_b, dex, timestamp;
