@@ -58,7 +58,16 @@ export class PriceExtendStream {
       const chunk = missingAccounts.slice(i, i + CHUNK_SIZE);
       // Now we populate the cache with the actual data
       let foundAccCount = 0;
-      for await (const dbSwap of this.refetchPositions(chunk)) {
+
+      const dbSwaps = await chRetry(this.logger, async () => {
+        const res: DbSwap[] = [];
+        for await (const dbSwap of this.refetchPositions(chunk)) {
+          res.push(dbSwap);
+        }
+        return res;
+      });
+
+      for (const dbSwap of dbSwaps) {
         foundAccounts.add(dbSwap.account);
         this.loadTokenPosition(dbSwap);
         foundAccCount++;
