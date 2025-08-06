@@ -12,7 +12,7 @@ import _ from 'lodash';
 const ACCOUNT_POSITIONS_MAP_CAPACITY = 100_000;
 // cache dump interval
 const SOLANA_BLOCKTIME_SEC = 0.4;
-const DEFAULT_CACHE_DUMP_INTERVAL_BLOCKS = (4 * 3600) / SOLANA_BLOCKTIME_SEC; // dump every ~4h of indexed data
+const DEFAULT_CACHE_DUMP_INTERVAL_BLOCKS = (30 * 60) / SOLANA_BLOCKTIME_SEC; // dump every ~30m of indexed data
 
 function indent(size: number) {
   return _.repeat('  ', size);
