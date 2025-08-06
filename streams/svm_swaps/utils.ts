@@ -362,7 +362,10 @@ export function timeIt<T>(
   };
   const r = fn();
   if (r instanceof Promise) {
-    return r.then(logTime) as T;
+    return r.then((r) => {
+      logTime();
+      return r;
+    }) as T;
   }
   logTime();
   return r;
