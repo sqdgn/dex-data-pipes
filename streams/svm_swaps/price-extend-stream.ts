@@ -244,7 +244,7 @@ export class PriceExtendStream {
     extTokenB.amount = tokenAIsOutputToken ? -tokenB.amount : tokenB.amount;
 
     // For now we only process positions against allowed quote tokens
-    if (tokenBIsAllowedQuote) {
+    if (tokenBIsAllowedQuote && amountA > 0 && amountB > 0) {
       const positions = {
         a: await this.getOrLoadTokenPositions(swap.account, tokenA.mintAcc),
         b: await this.getOrLoadTokenPositions(swap.account, tokenB.mintAcc),
@@ -312,8 +312,12 @@ export class PriceExtendStream {
     }
     // Find missing accounts
     const filteredSwaps = swaps.filter(
-      // For now we don't track positions for swaps where neither of the toknes can be found in `QUOTE_TOKENS`
-      (s) => QUOTE_TOKENS.includes(s.input.mintAcc) || QUOTE_TOKENS.includes(s.output.mintAcc),
+      (s) =>
+        // For now we don't track positions for swaps where neither of the toknes can be found in `QUOTE_TOKENS`
+        (QUOTE_TOKENS.includes(s.input.mintAcc) || QUOTE_TOKENS.includes(s.output.mintAcc)) &&
+        // We also don't care about swaps that have one of the token amounts === 0
+        s.input.amount > 0 &&
+        s.output.amount > 0,
     );
     const missingAccounts = _.uniq(filteredSwaps.map((s) => s.account)).filter(
       (a) => !this.accountPositions.has(a),
