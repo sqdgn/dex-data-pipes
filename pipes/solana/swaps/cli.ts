@@ -12,6 +12,7 @@ const config = getConfig();
 const logger = createLogger('solana dex swaps');
 
 logger.info(`Local database: ${config.dbPath}`);
+logger.info(`Cache dump path: ${config.cacheDumpPath}`);
 
 async function main() {
   Error.stackTraceLimit = 1000;
@@ -63,7 +64,9 @@ async function main() {
   ds.initialize();
 
   const stream = await ds.stream();
-  for await (const swaps of stream.pipeThrough(await new PriceExtendStream(clickhouse).pipe())) {
+  for await (const swaps of stream.pipeThrough(
+    await new PriceExtendStream(clickhouse, config.cacheDumpPath).pipe(),
+  )) {
     await timeIt(
       logger,
       `Inserting swaps to Clickhouse`,

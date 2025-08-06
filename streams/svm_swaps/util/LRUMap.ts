@@ -74,4 +74,12 @@ export class LRUMap<K, V> {
     }
     return existing?.value || null;
   }
+
+  entries() {
+    return this.map.entries();
+  }
+
+  keys() {
+    return this.map.keys();
+  }
 }

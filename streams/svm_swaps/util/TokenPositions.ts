@@ -23,6 +23,7 @@ export type DbSwap = {
   token_b_usdc_price: number;
 };
 export class TokenPositions {
+  private readonly __version = '1.0.0';
   // Since we're using floating point numbers for calculations here
   // we need to define some acceptable margin of error
   private epsilon = 1e-10;
@@ -32,6 +33,35 @@ export class TokenPositions {
   private _loses = 0;
 
   constructor() {}
+
+  public serialize(): string[] {
+    const serialized = [`${this.__version}:${this._wins}:${this._loses}`];
+    for (const position of this.positions) {
+      serialized.push(`${position.amount}:${position.price}:${position.realizedPnL}`);
+    }
+    return serialized;
+  }
+
+  public loadSerialized(data: string[]) {
+    const [head] = data;
+    const [version, wins, loses] = head.split(':');
+    if (version !== this.__version) {
+      throw new Error(
+        `Cannot load serialized TokenPositions. Version mismatch!` +
+          `Current: ${this.__version}, serialized: ${version}`,
+      );
+    }
+    this._wins = Number(wins);
+    this._loses = Number(loses);
+    for (const serializedPosition of data.slice(1)) {
+      const [amount, price, realizedPnL] = serializedPosition.split(':');
+      this.positions.pushTail({
+        amount: Number(amount),
+        price: Number(price),
+        realizedPnL: Number(realizedPnL),
+      });
+    }
+  }
 
   private closeTo(x: number, y: number) {
     return Math.abs(x - y) < this.epsilon;

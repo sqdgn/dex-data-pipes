@@ -5,7 +5,7 @@ import { createLogger } from '../../pipes/utils';
 import _ from 'lodash';
 import { DbSwap, ExitSummary, TokenPositions } from './util/TokenPositions';
 import { Logger } from 'pino';
-import { LRUMap } from './util/LRUMap';
+import { AccountsPositionsCache } from './util/AccountPositionsCache';
 
 export type TokenPriceData = {
   poolAddress: string;
@@ -40,19 +40,13 @@ function toStartOfPrevHour(date: Date) {
   return startOfPrevHour;
 }
 
-// We limit LRU cache for account positions to 100_000
-// most recently used accounts.
-const ACCOUNT_POSITIONS_MAP_CAPACITY = 100_000;
-
 // Max. Number of accounts to preload positions for in a single query
 const PRELOAD_ACCOUNT_POSITIONS_BATCH_SIZE = 50;
 
 export class PriceExtendStream {
   private logger: Logger;
   // Double map: userAcc -> tokenMintAcc -> TokenPositions (FIFO queue)
-  private accountPositions = new LRUMap<string, Map<string, TokenPositions>>(
-    ACCOUNT_POSITIONS_MAP_CAPACITY,
-  );
+  private accountPositions = new AccountsPositionsCache();
   // Cache hit ratio for account positions LRUMap cache
   private cacheHitRatio = { cacheHit: 0, dbHit: 0, miss: 0 };
   // tokenMintAcc => TokenPriceData map
@@ -60,7 +54,10 @@ export class PriceExtendStream {
   // Ending date currently used to select best pricing pools for each token
   private bestPoolMaxDate: Date | undefined;
 
-  constructor(private client: ClickHouseClient) {
+  constructor(
+    private client: ClickHouseClient,
+    private cacheDumpPath: string,
+  ) {
     this.logger = createLogger('price-extend-stream');
   }
 
@@ -116,7 +113,7 @@ export class PriceExtendStream {
     this.bestPoolMaxDate = bestPoolMaxDate;
   }
 
-  private async *refetchPositions(accounts: string[]) {
+  private async *refetchPositions(accounts: string[], fromBlock?: number) {
     for (const accountsChunk of _.chunk(accounts, PRELOAD_ACCOUNT_POSITIONS_BATCH_SIZE)) {
       const result = await timeIt(
         this.logger,
@@ -136,8 +133,9 @@ export class PriceExtendStream {
             WHERE
               sign > 0
               AND account IN {accounts:Array(String)}
+              ${fromBlock ? 'AND block_number >= {fromBlock:UInt32}' : ''}
             ORDER BY (account, block_number, transaction_index, instruction_address) ASC`,
-            query_params: { accounts: accountsChunk },
+            query_params: { accounts: accountsChunk, fromBlock },
             format: 'JSONEachRow',
           }),
         { chunkSize: accountsChunk.length },
@@ -152,8 +150,8 @@ export class PriceExtendStream {
   }
 
   private loadTokenPosition(swap: DbSwap) {
-    const positionsA = this.getOrCreateTokenPositions(swap.account, swap.token_a);
-    const positionsB = this.getOrCreateTokenPositions(swap.account, swap.token_b);
+    const positionsA = this.accountPositions.getOrCreateTokenPositions(swap.account, swap.token_a);
+    const positionsB = this.accountPositions.getOrCreateTokenPositions(swap.account, swap.token_b);
     positionsA.load(swap, swap.token_a);
     positionsB.load(swap, swap.token_b);
   }
@@ -167,20 +165,6 @@ export class PriceExtendStream {
       wins: 0,
       loses: 0,
     };
-  }
-
-  private getOrCreateTokenPositions(account: string, token: string): TokenPositions {
-    let accountPositions = this.accountPositions.get(account);
-    if (!accountPositions) {
-      accountPositions = new Map();
-      this.accountPositions.set(account, accountPositions);
-    }
-    let tokenPositions = accountPositions.get(token);
-    if (!tokenPositions) {
-      tokenPositions = new TokenPositions();
-      accountPositions.set(token, tokenPositions);
-    }
-    return tokenPositions;
   }
 
   private async getOrLoadTokenPositions(account: string, token: string): Promise<TokenPositions> {
@@ -199,14 +183,14 @@ export class PriceExtendStream {
         ++this.cacheHitRatio.miss;
       }
       // ...then use getOrCreate for this specific token
-      const tokenPositions = this.getOrCreateTokenPositions(account, token);
+      const tokenPositions = this.accountPositions.getOrCreateTokenPositions(account, token);
       return tokenPositions;
     } else {
       ++this.cacheHitRatio.cacheHit;
     }
     // If account positions are already present in cache,
     // we can safely use getOrCreate
-    return this.getOrCreateTokenPositions(account, token);
+    return this.accountPositions.getOrCreateTokenPositions(account, token);
   }
 
   private async processSwap(swap: SolanaSwap): Promise<ExtendedSolanaSwap> {
@@ -315,6 +299,18 @@ export class PriceExtendStream {
   }
 
   private async preloadMissingAccountPositions(swaps: SolanaSwap[]) {
+    // Init accountPositions cache first if not initialized yet
+    if (!this.accountPositions.loaded) {
+      const [firstSwap] = swaps;
+      await this.accountPositions.loadFromFile(this.cacheDumpPath, firstSwap.block.number - 1);
+      if (this.accountPositions.lastDumpBlock) {
+        await this.preloadAccountPositions(
+          [...this.accountPositions.keys()],
+          this.accountPositions.lastDumpBlock + 1,
+        );
+      }
+    }
+    // Find missing accounts
     const filteredSwaps = swaps.filter(
       // For now we don't track positions for swaps where neither of the toknes can be found in `QUOTE_TOKENS`
       (s) => QUOTE_TOKENS.includes(s.input.mintAcc) || QUOTE_TOKENS.includes(s.output.mintAcc),
@@ -322,7 +318,6 @@ export class PriceExtendStream {
     const missingAccounts = _.uniq(filteredSwaps.map((s) => s.account)).filter(
       (a) => !this.accountPositions.has(a),
     );
-    const foundAccounts = new Set<string>();
     // First we populate this.accountPositions with empty maps for
     // each of the missing accounts, because we still want to mark all of
     // them as "loaded into cache", even if they didn't make any swaps yet.
@@ -331,33 +326,39 @@ export class PriceExtendStream {
       this.accountPositions.set(account, new Map());
     }
     // Now we populate the cache with the actual data
-    let positionsCount = 0;
-    for await (const dbSwap of this.refetchPositions(missingAccounts)) {
-      foundAccounts.add(dbSwap.account);
-      this.loadTokenPosition(dbSwap);
-      positionsCount += 2;
-    }
-    this.logger.debug(
-      `Preloaded ${positionsCount} positions for ${missingAccounts.length} missing accounts. ${foundAccounts.size} were found in db.`,
-    );
+    await this.preloadAccountPositions(missingAccounts);
+  }
+
+  private async preloadAccountPositions(accounts: string[], fromBlock?: number) {
+    await timeIt(this.logger, 'Preloading positions', async () => {
+      const foundAccounts = new Set<string>();
+      let positionsCount = 0;
+      for await (const dbSwap of this.refetchPositions(accounts, fromBlock)) {
+        foundAccounts.add(dbSwap.account);
+        this.loadTokenPosition(dbSwap);
+        positionsCount += 2;
+      }
+      this.logger.debug(
+        `Preloaded ${positionsCount} positions for ${accounts.length} accounts ` +
+          (fromBlock ? `starting from block ${fromBlock} ` : '') +
+          `(${foundAccounts.size} accounts were found in db)`,
+      );
+    });
   }
 
   async pipe(): Promise<TransformStream<SolanaSwap[], ExtendedSolanaSwap[]>> {
     return new TransformStream({
-      start: async () => {
-        // Does nothing rn...
-      },
       transform: async (swaps: SolanaSwap[], controller) => {
         await timeIt(this.logger, 'Extending swaps', async () => {
           const extendedSwaps: ExtendedSolanaSwap[] = [];
-          await timeIt(this.logger, 'Preloading positions', async () => {
-            await this.preloadMissingAccountPositions(swaps);
-          });
+          await this.preloadMissingAccountPositions(swaps);
           for (const swap of swaps) {
             const extendedSwap = await this.processSwap(swap);
             extendedSwaps.push(extendedSwap);
           }
           this.logAndResetCacheStats();
+          const [lastSwap] = swaps.slice(-1);
+          this.accountPositions.dumpIfNeeded(this.cacheDumpPath, lastSwap.block.number);
           controller.enqueue(extendedSwaps);
         });
       },
