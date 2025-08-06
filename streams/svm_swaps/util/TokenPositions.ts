@@ -1,4 +1,5 @@
 import _ from 'lodash';
+import { Queue } from './Queue';
 
 export type TokenPosition = {
   amount: number;
@@ -21,12 +22,11 @@ export type DbSwap = {
   token_a_usdc_price: number;
   token_b_usdc_price: number;
 };
-
 export class TokenPositions {
   // Since we're using floating point numbers for calculations here
   // we need to define some acceptable margin of error
   private epsilon = 1e-10;
-  private positions: TokenPosition[] = [];
+  private positions = new Queue<TokenPosition>();
   // Wins and loses count for this user-token pair
   private _wins = 0;
   private _loses = 0;
@@ -52,11 +52,15 @@ export class TokenPositions {
       // Ignore if amount or price == 0
       return;
     }
-    this.positions.push({ amount, price, realizedPnL: 0 });
+    this.positions.pushTail({ amount, price, realizedPnL: 0 });
   }
 
   public get totalBalance() {
-    return _.sumBy(this.positions, (p) => p.amount);
+    let total = 0;
+    for (const { amount } of this.positions) {
+      total += amount;
+    }
+    return total;
   }
 
   public get wins() {
@@ -79,8 +83,8 @@ export class TokenPositions {
     let totalRealizedAmount = 0;
     let totalEntryCostUsdc = 0;
     let totalProfitUsdc = 0;
-    while (!this.closeTo(totalRealizedAmount, amount) && this.positions.length) {
-      const position = this.positions[0];
+    while (!this.closeTo(totalRealizedAmount, amount) && this.positions.headValue) {
+      const position = this.positions.headValue;
       const realizedAmount = Math.min(amount - totalRealizedAmount, position.amount);
       const entryCost = realizedAmount * position.price;
       const realizedPnL = realizedAmount * price - entryCost;
@@ -95,7 +99,7 @@ export class TokenPositions {
         } else {
           this._loses += 1;
         }
-        this.positions.shift();
+        this.positions.popHead();
       }
     }
 
