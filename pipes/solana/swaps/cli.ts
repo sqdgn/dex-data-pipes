@@ -2,7 +2,7 @@ import path from 'path';
 import { ClickhouseState } from '@sqd-pipes/core';
 import { createClickhouseClient, ensureTables, toUnixTime } from '../../clickhouse';
 import { createLogger } from '../../utils';
-import { getConfig } from '../config';
+import { getConfig } from './config';
 import { SolanaSwapsStream } from '../../../streams/svm_swaps';
 import { PriceExtendStream } from '../../../streams/svm_swaps/price-extend-stream';
 import { asDecimalString, timeIt } from '../../../streams/svm_swaps/utils';

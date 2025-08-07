@@ -4,7 +4,7 @@ import { getInstructionData } from '@subsquid/solana-stream';
 import type * as PortalData from '@subsquid/solana-normalization';
 import { toHex } from '@subsquid/util-internal-hex';
 import { PublicKey } from '@solana/web3.js';
-import { Block, DecodedTransfer, Instruction, SwappedTokenData } from './types';
+import { Block, DecodedTransfer, Instruction, InstructionContext, SwappedTokenData } from './types';
 import * as tokenProgram from './contracts/token-program';
 import * as token2022Program from './contracts/token-2022-program';
 import { Logger } from 'pino';
@@ -14,11 +14,7 @@ export function getInstructionBalances(ins: Instruction, block: Block) {
   return block.tokenBalances?.filter((t) => t.transactionIndex === ins.transactionIndex) || [];
 }
 
-export function getTokenBalance(tokenBalances: Block['tokenBalances'], addr: string) {
-  const tokenBalance = tokenBalances.find((b) => b.account === addr);
-  if (!tokenBalance) {
-    throw new Error(`Could not find token balance for account: ${addr}.`);
-  }
+export function normalizeTokenBalance(tokenBalance: Block['tokenBalances'][number]) {
   // Normalize amounts
   if (typeof tokenBalance.preAmount === 'string') {
     tokenBalance.preAmount = BigInt(tokenBalance.preAmount);
@@ -26,7 +22,21 @@ export function getTokenBalance(tokenBalances: Block['tokenBalances'], addr: str
   if (typeof tokenBalance.postAmount === 'string') {
     tokenBalance.postAmount = BigInt(tokenBalance.postAmount);
   }
+  // Normalize nulls
+  for (const k in tokenBalance) {
+    if (tokenBalance[k] === null) {
+      tokenBalance[k] = undefined;
+    }
+  }
   return tokenBalance;
+}
+
+export function getTokenBalance(tokenBalances: Block['tokenBalances'], addr: string) {
+  const tokenBalance = tokenBalances.find((b) => b.account === addr);
+  if (!tokenBalance) {
+    throw new Error(`Could not find token balance for account: ${addr}.`);
+  }
+  return normalizeTokenBalance(tokenBalance);
 }
 
 export function getPreTokenBalance(
@@ -49,6 +59,14 @@ export function getPostTokenBalance(
     throw new Error(`Token balance is not a post-balance: ${addr}.`);
   }
   return tokenBalance as PortalData.PostTokenBalance;
+}
+
+export function getPrePostTokenBalance(tokenBalances: Block['tokenBalances'], addr: string) {
+  const tokenBalance = getTokenBalance(tokenBalances, addr);
+  if (tokenBalance.preAmount === undefined || tokenBalance.postAmount === undefined) {
+    throw new Error(`Token balance is not a pre-post-balance: ${addr}.`);
+  }
+  return tokenBalance as PortalData.PrePostTokenBalance;
 }
 
 export function getNextInstruction(instruction: Instruction, instructions: Instruction[]) {
@@ -409,4 +427,22 @@ export function validateSwapAccounts(
     transferOut.accounts.source === reserveOut,
     `${dexName}: Output transfer source account does not match output token reserve account. Tx: ${txHash}`,
   );
+}
+
+export function getInstructionContext(ins: Instruction, block: Block): InstructionContext {
+  return {
+    block: {
+      number: block.header.number,
+      hash: block.header.hash,
+      timestamp: block.header.timestamp,
+    },
+    instruction: {
+      address: ins.instructionAddress,
+    },
+    transaction: {
+      hash: getTransactionHash(ins, block),
+      index: ins.transactionIndex,
+    },
+    timestamp: new Date(block.header.timestamp * 1000),
+  };
 }
