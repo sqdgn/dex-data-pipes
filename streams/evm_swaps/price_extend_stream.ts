@@ -15,9 +15,11 @@ import { DbSwap, TokenPositions } from './util/TokenPositions';
 import { Logger } from 'pino';
 import { inspect } from 'util';
 import { chRetry } from '../../common/chRetry';
+import { Profiler } from './util/Profiler';
 
 export class PriceExtendStream {
   private readonly refTokenPriceHistoryLen = 10;
+  private profiler = new Profiler();
 
   private refPricesTokenUsdc = new Map<string, ReferenceTokenWithPrice[]>();
 
@@ -49,47 +51,56 @@ export class PriceExtendStream {
   private cacheHitRatio = { cacheHit: 0, cacheMiss: 0 };
 
   private async preloadMissingAccountPositions(swaps: EvmSwap[]) {
-    const filteredSwaps = swaps.filter(
-      // For now we don't track positions for swaps where neither of the toknes are reference tokens
-      (s) =>
-        referenceTokens[this.network].findIndex(
-          (refTok) =>
-            refTok.tokenAddress === s.tokenA.address || refTok.tokenAddress === s.tokenB.address,
-        ) !== -1,
+    const filteredSwaps = await this.profiler.profile('filter_reference_swaps', async () =>
+      swaps.filter(
+        (s) =>
+          referenceTokens[this.network].findIndex(
+            (refTok) =>
+              refTok.tokenAddress === s.tokenA.address || refTok.tokenAddress === s.tokenB.address,
+          ) !== -1,
+      ),
     );
-    const uniqueSwapAccounts = _.uniq(filteredSwaps.map((s) => s.account));
-    const missingAccounts: string[] = [];
 
-    for (const acc of uniqueSwapAccounts) {
-      if (this.accountPositions.has(acc)) {
-        this.cacheHitRatio.cacheHit++;
-      } else {
-        missingAccounts.push(acc);
-        this.cacheHitRatio.cacheMiss++;
+    const uniqueSwapAccounts = await this.profiler.profile('get_unique_accounts', async () =>
+      _.uniq(filteredSwaps.map((s) => s.account)),
+    );
+
+    const missingAccounts = await this.profiler.profile('find_missing_accounts', async () => {
+      const missing: string[] = [];
+      for (const acc of uniqueSwapAccounts) {
+        if (this.accountPositions.has(acc)) {
+          this.cacheHitRatio.cacheHit++;
+        } else {
+          missing.push(acc);
+          this.cacheHitRatio.cacheMiss++;
+        }
       }
-    }
+      return missing;
+    });
 
     this.totalMissingAccountsRequested += missingAccounts.length;
     const foundAccounts = new Set<string>();
-    // First we populate this.accountPositions with empty maps for
-    // each of the missing accounts, because we still want to mark all of
-    // them as "loaded into cache", even if they didn't make any swaps yet.
-    // (so that they are not redundantly re-fetched later)
-    for (const account of missingAccounts) {
-      this.accountPositions.set(account, new Map());
-    }
+
+    await this.profiler.profile('init_empty_accounts', async () => {
+      for (const account of missingAccounts) {
+        this.accountPositions.set(account, new Map());
+      }
+    });
+
     const CHUNK_SIZE = 100;
-    // if no chunks, https://github.com/ClickHouse/ClickHouse/issues/36783 will appear (query too huge)
     for (let i = 0; i < missingAccounts.length; i += CHUNK_SIZE) {
       const chunk = missingAccounts.slice(i, i + CHUNK_SIZE);
-      // Now we populate the cache with the actual data
 
-      const dbSwaps = await this.refetchPositionsSwaps(chunk);
+      const dbSwaps = await this.profiler.profile('fetch_db_swaps', async () =>
+        this.refetchPositionsSwaps(chunk),
+      );
 
-      for (const dbSwap of dbSwaps) {
-        foundAccounts.add(dbSwap.account);
-        this.loadTokenPosition(dbSwap);
-      }
+      await this.profiler.profile('process_db_swaps', async () => {
+        for (const dbSwap of dbSwaps) {
+          foundAccounts.add(dbSwap.account);
+          this.loadTokenPosition(dbSwap);
+        }
+      });
     }
 
     this.totalFoundAccountsLoaded += foundAccounts.size;
@@ -245,122 +256,144 @@ export class PriceExtendStream {
   }
 
   private async processSwap(inputSwap: EvmSwap): Promise<ExtendedEvmSwap> {
-    const swap: ExtendedEvmSwap = {
-      ...inputSwap,
-      price_token_a_usdc: 0,
-      price_token_b_usdc: 0,
-      a_b_swapped: false,
-      token_a_balance: 0,
-      token_b_balance: 0,
-      token_a_profit_usdc: 0,
-      token_b_profit_usdc: 0,
-      token_a_cost_usdc: 0,
-      token_b_cost_usdc: 0,
-      token_a_wins: 0,
-      token_b_wins: 0,
-      token_a_loses: 0,
-      token_b_loses: 0,
-    };
-    if (this.needSwap(swap.tokenA.address, swap.tokenB.address)) {
-      [swap.tokenA, swap.tokenB] = [swap.tokenB, swap.tokenA];
-      swap.a_b_swapped = true;
-    }
-    // here token_b in the swap is possible reference token (sorted above)
+    return await this.profiler.profile('process_swap_total', async () => {
+      const swap: ExtendedEvmSwap = await this.profiler.profile('init_swap', async () => ({
+        ...inputSwap,
+        price_token_a_usdc: 0,
+        price_token_b_usdc: 0,
+        a_b_swapped: false,
+        token_a_balance: 0,
+        token_b_balance: 0,
+        token_a_profit_usdc: 0,
+        token_b_profit_usdc: 0,
+        token_a_cost_usdc: 0,
+        token_b_cost_usdc: 0,
+        token_a_wins: 0,
+        token_b_wins: 0,
+        token_a_loses: 0,
+        token_b_loses: 0,
+      }));
 
-    const refToTokenInfo = referenceTokens[this.network]?.find(
-      (t) => t.tokenAddress === swap.tokenB.address,
-    );
-
-    if (
-      !refToTokenInfo || // not a swap to reference token
-      swap.tokenA.amount_raw === 0n || // or either amount is zero – cannot calculate price
-      swap.tokenB.amount_raw === 0n ||
-      swap.tokenA.amount_raw < 0n === swap.tokenB.amount_raw < 0n // both amounts of same sign - error but it happens
-    ) {
-      swap.price_token_a_usdc = 0;
-      swap.price_token_b_usdc = 0;
-      return swap;
-    }
-
-    if (swap.tokenB.address === USDC_TOKEN_ADDRESS[this.network]) {
-      if (Math.abs(swap.tokenB.amount_human) < 0.1 || Math.abs(swap.tokenB.amount_human) > 10000) {
-        // don't calculate for too small and too large USDC amounts
-        swap.price_token_a_usdc = 0;
-        swap.price_token_b_usdc = 0;
-        return swap;
-      }
-
-      // swap with usdc
-      swap.price_token_b_usdc = 1;
-    } else {
-      const histPrices = this.refPricesTokenUsdc.get(swap.tokenB.address);
-      assert.ok(histPrices, 'historical prices must be loaded, init error');
-
-      if (histPrices.length < this.refTokenPriceHistoryLen) {
-        // not enough prices ref token in usdc to calc token_a usd price.
-        swap.price_token_a_usdc = 0;
-        swap.price_token_b_usdc = 0;
-        return swap;
-      }
-      swap.price_token_b_usdc = median(histPrices);
-    }
-
-    swap.price_token_a_usdc =
-      (Math.abs(swap.tokenB.amount_human) / Math.abs(swap.tokenA.amount_human)) *
-      swap.price_token_b_usdc;
-
-    const refFromTokenInfo = referenceTokens[this.network]?.find(
-      (t) => t.tokenAddress === swap.tokenA.address,
-    );
-
-    if (refFromTokenInfo && swap.pool.address === refFromTokenInfo.poolAddress) {
-      // token_a is also a reference token and swap in reference pool,
-      // so price of token_a must be updated in local cache
-      const historicalPrices = this.refPricesTokenUsdc.get(swap.tokenA.address)!;
-      historicalPrices.unshift({
-        poolAddress: refToTokenInfo.poolAddress,
-        priceTokenUsdc: swap.price_token_a_usdc,
-        timestamp: Date.now(),
-        tokenAddress: swap.tokenA.address,
+      await this.profiler.profile('check_and_swap_tokens', async () => {
+        if (this.needSwap(swap.tokenA.address, swap.tokenB.address)) {
+          [swap.tokenA, swap.tokenB] = [swap.tokenB, swap.tokenA];
+          swap.a_b_swapped = true;
+        }
       });
 
-      while (historicalPrices.length > this.refTokenPriceHistoryLen) {
-        historicalPrices.pop();
+      const refToTokenInfo = await this.profiler.profile('find_ref_token', async () =>
+        referenceTokens[this.network]?.find((t) => t.tokenAddress === swap.tokenB.address),
+      );
+
+      const isWrongValue = (n: number) => Number.isNaN(n) || n === undefined || n === null;
+
+      if (
+        !refToTokenInfo || // not a swap to reference token
+        swap.tokenA.amount_raw === 0n || // or either amount is zero – cannot calculate price
+        swap.tokenB.amount_raw === 0n ||
+        swap.tokenA.amount_raw < 0n === swap.tokenB.amount_raw < 0n // both amounts of same sign - error but it happens
+        // isWrongValue(swap.tokenA.amount_human) || // sometimes we can miss token data due to decimal load error - just ignore it.
+        // isWrongValue(swap.tokenB.amount_human)
+      ) {
+        swap.price_token_a_usdc = 0;
+        swap.price_token_b_usdc = 0;
+        return swap;
       }
-      // inserted latest price is at the beginning
-    }
 
-    const positionsA = await chRetry(
-      this.logger,
-      'getOrLoadTokenPositionsA',
-      async () => await this.getOrLoadTokenPositions(swap.account, swap.tokenA.address),
-    );
-    const positionsB = await chRetry(
-      this.logger,
-      'getOrLoadTokenPositionsB',
-      async () => await this.getOrLoadTokenPositions(swap.account, swap.tokenB.address),
-    );
+      await this.profiler.profile('calculate_prices', async () => {
+        if (swap.tokenB.address === USDC_TOKEN_ADDRESS[this.network]) {
+          if (
+            Math.abs(swap.tokenB.amount_human) < 0.1 ||
+            Math.abs(swap.tokenB.amount_human) > 10000
+          ) {
+            // don't calculate for too small and too large USDC amounts
+            swap.price_token_a_usdc = 0;
+            swap.price_token_b_usdc = 0;
+            return;
+          }
 
-    if (swap.tokenA.amount_human < 0) {
-      // user withdraws A from a pool and deposits B to pool, so it means, is entry in A and exit on B
-      positionsA.entry(-swap.tokenA.amount_human, swap.price_token_a_usdc);
-      const exitB = positionsB.exit(swap.tokenB.amount_human, swap.price_token_b_usdc);
-      swap.token_b_cost_usdc = exitB.entryCostUsdc;
-      swap.token_b_profit_usdc = exitB.profitUsdc;
-    } else {
-      positionsB.entry(-swap.tokenB.amount_human, swap.price_token_b_usdc);
-      const exitA = positionsA.exit(swap.tokenA.amount_human, swap.price_token_a_usdc);
-      swap.token_a_cost_usdc = exitA.entryCostUsdc;
-      swap.token_a_profit_usdc = exitA.profitUsdc;
-    }
-    swap.token_a_balance = positionsA.totalBalance;
-    swap.token_a_wins = positionsA.wins;
-    swap.token_a_loses = positionsA.loses;
-    swap.token_b_balance = positionsB.totalBalance;
-    swap.token_b_wins = positionsB.wins;
-    swap.token_b_loses = positionsB.loses;
+          // swap with usdc
+          swap.price_token_b_usdc = 1;
+        } else {
+          const histPrices = this.refPricesTokenUsdc.get(swap.tokenB.address);
+          assert.ok(histPrices, 'historical prices must be loaded, init error');
 
-    return swap;
+          if (histPrices.length < this.refTokenPriceHistoryLen) {
+            // not enough prices ref token in usdc to calc token_a usd price.
+            swap.price_token_a_usdc = 0;
+            swap.price_token_b_usdc = 0;
+            return;
+          }
+          swap.price_token_b_usdc = median(histPrices);
+        }
+
+        swap.price_token_a_usdc =
+          (Math.abs(swap.tokenB.amount_human) / Math.abs(swap.tokenA.amount_human)) *
+          swap.price_token_b_usdc;
+      });
+
+      await this.profiler.profile('update_ref_prices', async () => {
+        const refFromTokenInfo = referenceTokens[this.network]?.find(
+          (t) => t.tokenAddress === swap.tokenA.address,
+        );
+
+        if (refFromTokenInfo && swap.pool.address === refFromTokenInfo.poolAddress) {
+          const historicalPrices = this.refPricesTokenUsdc.get(swap.tokenA.address)!;
+          historicalPrices.unshift({
+            poolAddress: refToTokenInfo.poolAddress,
+            priceTokenUsdc: swap.price_token_a_usdc,
+            timestamp: Date.now(),
+            tokenAddress: swap.tokenA.address,
+          });
+
+          while (historicalPrices.length > this.refTokenPriceHistoryLen) {
+            historicalPrices.pop();
+          }
+        }
+      });
+
+      const [positionsA, positionsB] = await this.profiler.profile('load_positions', async () => {
+        const posA = await chRetry(
+          this.logger,
+          'getOrLoadTokenPositionsA',
+          async () => await this.getOrLoadTokenPositions(swap.account, swap.tokenA.address),
+        );
+        const posB = await chRetry(
+          this.logger,
+          'getOrLoadTokenPositionsB',
+          async () => await this.getOrLoadTokenPositions(swap.account, swap.tokenB.address),
+        );
+        return [posA, posB];
+      });
+
+      if (swap.tokenA.amount_human < 0) {
+        await this.profiler.profile('entry_position', async () => {
+          positionsA.entry(-swap.tokenA.amount_human, swap.price_token_a_usdc);
+        });
+        const exitB = await this.profiler.profile('exit_position', async () =>
+          positionsB.exit(swap.tokenB.amount_human, swap.price_token_b_usdc),
+        );
+        swap.token_b_cost_usdc = exitB.entryCostUsdc;
+        swap.token_b_profit_usdc = exitB.profitUsdc;
+      } else {
+        await this.profiler.profile('entry_position', async () => {
+          positionsB.entry(-swap.tokenB.amount_human, swap.price_token_b_usdc);
+        });
+        const exitA = await this.profiler.profile('exit_position', async () =>
+          positionsA.exit(swap.tokenA.amount_human, swap.price_token_a_usdc),
+        );
+        swap.token_a_cost_usdc = exitA.entryCostUsdc;
+        swap.token_a_profit_usdc = exitA.profitUsdc;
+      }
+      swap.token_a_balance = positionsA.totalBalance;
+      swap.token_a_wins = positionsA.wins;
+      swap.token_a_loses = positionsA.loses;
+      swap.token_b_balance = positionsB.totalBalance;
+      swap.token_b_wins = positionsB.wins;
+      swap.token_b_loses = positionsB.loses;
+
+      return swap;
+    });
   }
 
   private firstTransformStarted = false;
@@ -378,18 +411,18 @@ export class PriceExtendStream {
           this.logger.info('price_extend_stream: firstTransformStarted');
         }
         await this.preloadMissingAccountPositions(swaps);
-        controller.enqueue(
-          await Promise.all(
-            swaps.map(async (s) => {
-              try {
-                return await this.processSwap(s);
-              } catch (err) {
-                this.logger.error(`processSwap: ${inspect(s)}`);
-                throw err;
-              }
-            }),
-          ),
-        );
+
+        const swapsRes: ExtendedEvmSwap[] = [];
+
+        for (const s of swaps) {
+          try {
+            swapsRes.push(await this.processSwap(s));
+          } catch (err) {
+            this.logger.error(`processSwap: ${inspect(s)}`);
+            throw err;
+          }
+        }
+        controller.enqueue(swapsRes);
       },
     });
   }
