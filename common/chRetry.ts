@@ -2,8 +2,8 @@ import { Logger } from 'pino';
 
 export const chRetry = async <T>(
   logger: Logger,
-  func: () => Promise<T>,
   operationDescription: string = '',
+  func: () => Promise<T>,
 ): Promise<T> => {
   let res: Awaited<T>;
   let retries = 0;

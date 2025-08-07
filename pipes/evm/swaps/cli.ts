@@ -16,6 +16,11 @@ logger.info(`Local database: ${config.dbPath}`);
 async function main() {
   const clickhouse = await createClickhouseClient({
     capture_enhanced_stack_trace: true,
+    clickhouse_settings: {
+      http_receive_timeout: 900,
+      receive_timeout: 900,
+    },
+    request_timeout: 900_000,
   });
   await ensureTables(clickhouse, __dirname);
 
@@ -66,6 +71,7 @@ async function main() {
     try {
       await chRetry(
         logger,
+        'swaps_raw insert',
         async () =>
           await clickhouse.insert({
             table: `swaps_raw`,
@@ -123,7 +129,6 @@ async function main() {
             }),
             format: 'JSONEachRow',
           }),
-        'transfer insert',
       );
     } catch (err) {
       logger.error('insert err:', inspect(err));
