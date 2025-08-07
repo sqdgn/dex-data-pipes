@@ -6,7 +6,7 @@ import * as meteoraDlmm from './contracts/meteora-dlmm';
 import * as whirlpool from './contracts/orca-whirlpool';
 import * as raydiumClmm from './contracts/raydium-clmm';
 import * as raydiumAmm from './contracts/raydium-cpmm';
-import * as raydiumLaunchlab from './contracts/raydium-lanuchlab';
+import * as raydiumLaunchlab from './contracts/raydium-launchlab';
 import * as metaplex from './contracts/metaplex';
 import * as token from './contracts/token-program';
 import * as token2022 from './contracts/token-2022-program';
@@ -34,7 +34,7 @@ import {
   handleInitializeMint,
   isInitializeMintInstruction,
 } from './handlers/initialize-mint-handler';
-import * as raydiumLaunchLabHandler from './handlers/raydium-lanuchlab-handler';
+import * as raydiumLaunchLabHandler from './handlers/raydium-launchlab-handler';
 import { MetadataStorage } from '../storage/metadata-storage';
 
 type Args = {

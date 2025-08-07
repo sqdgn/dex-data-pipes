@@ -1,7 +1,7 @@
 import assert from 'node:assert';
 import Decimal from 'decimal.js';
 import { DATA_SYM, getInstructionDescriptor } from '@subsquid/solana-stream';
-import * as raydiumLaunchlab from '../contracts/raydium-lanuchlab';
+import * as raydiumLaunchlab from '../contracts/raydium-launchlab';
 import {
   getDecimals,
   getDecodedInnerTransfers,
@@ -12,7 +12,7 @@ import {
   validateSwapAccounts,
 } from '../utils';
 import { Block, Instruction, LaunchLabConfig, LaunchLabCurveType, SolanaSwapCore } from '../types';
-import { TradeEvent } from '../contracts/raydium-lanuchlab/types';
+import { TradeEvent } from '../contracts/raydium-launchlab/types';
 import { LaunchLabConfigStorage } from '../../storage/launchlab-config-storage';
 
 export const DEX_NAME = 'Raydium LaunchLab';
