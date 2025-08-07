@@ -3,10 +3,11 @@ import Decimal from 'decimal.js';
 import { DATA_SYM, getInstructionDescriptor } from '@subsquid/solana-stream';
 import * as raydiumLaunchlab from '../contracts/raydium-lanuchlab';
 import {
+  getDecimals,
   getDecodedInnerTransfers,
   getInnerInstructions,
   getInstructionBalances,
-  getPreTokenBalance,
+  getTokenBalance,
   getTransactionHash,
   validateSwapAccounts,
 } from '../utils';
@@ -110,12 +111,12 @@ export function handleSwap(
   assert(swapAcccount, `${DEX_NAME}: Failed to find authority/owner account! Tx: ${txHash}`);
 
   const tokenBalances = getInstructionBalances(ins, block);
-  const reserveIn = getPreTokenBalance(tokenBalances, reserveInAcc);
-  const reserveOut = getPreTokenBalance(tokenBalances, reserveOutAcc);
+  const reserveIn = getTokenBalance(tokenBalances, reserveInAcc);
+  const reserveOut = getTokenBalance(tokenBalances, reserveOutAcc);
 
   const { curveType } = configStorage.getConfig(globalConfig);
-  const decimalsBase = isBuy ? reserveOut.preDecimals : reserveIn.preDecimals;
-  const decimalsQuote = isBuy ? reserveIn.preDecimals : reserveOut.preDecimals;
+  const decimalsBase = isBuy ? getDecimals(reserveOut) : getDecimals(reserveIn);
+  const decimalsQuote = isBuy ? getDecimals(reserveIn) : getDecimals(reserveOut);
   const poolPriceBefore = getPoolPrice(
     curveType,
     event.virtualBase,
@@ -131,15 +132,15 @@ export function handleSwap(
     account: swapAcccount,
     input: {
       amount: transferIn.data.amount,
-      decimals: reserveIn.preDecimals,
+      decimals: getDecimals(reserveIn),
       mintAcc: tokenInMintAcc,
-      reserves: reserveIn.preAmount,
+      reserves: reserveIn.preAmount || 0n,
     },
     output: {
       amount: transferOut.data.amount,
-      decimals: reserveOut.preDecimals,
+      decimals: getDecimals(reserveOut),
       mintAcc: tokenOutMintAcc,
-      reserves: reserveOut.preAmount,
+      reserves: reserveOut.preAmount || 0n,
     },
     poolAddress: poolAcc,
     slippage: (isBuy ? 100 : -100) * actuallyPaidPrice.div(poolPriceBefore).sub(1).toNumber(),

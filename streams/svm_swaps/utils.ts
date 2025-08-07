@@ -69,6 +69,14 @@ export function getPrePostTokenBalance(tokenBalances: Block['tokenBalances'], ad
   return tokenBalance as PortalData.PrePostTokenBalance;
 }
 
+export function getDecimals(tokenBalance: Block['tokenBalances'][number]): number {
+  const decimals = tokenBalance.preDecimals ?? tokenBalance.postDecimals;
+  if (decimals === undefined || decimals === null) {
+    throw new Error(`Cannot retrieve decimals from token balance`);
+  }
+  return decimals;
+}
+
 export function getNextInstruction(instruction: Instruction, instructions: Instruction[]) {
   const index = instructions.findIndex(
     (i) => i.instructionAddress === instruction.instructionAddress,
