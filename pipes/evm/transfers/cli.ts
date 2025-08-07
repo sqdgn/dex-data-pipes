@@ -8,6 +8,7 @@ import { ClickhouseState } from '@sqd-pipes/core';
 const config = getConfig();
 
 const logger = createLogger('erc20').child({ network: config.network });
+logger.debug('cli started');
 
 async function main() {
   const clickhouse = await createClickhouseClient();
