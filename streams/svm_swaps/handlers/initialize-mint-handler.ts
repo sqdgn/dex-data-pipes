@@ -23,7 +23,7 @@ export const isInitializeMintInstruction = (ins: Instruction): boolean => {
   return false;
 };
 
-function decodeInitializeMint(ins: Instruction) {
+export function decodeInitializeMint(ins: Instruction) {
   const d1 = getInstructionD1(ins);
 
   if (ins.programId === token.programId) {

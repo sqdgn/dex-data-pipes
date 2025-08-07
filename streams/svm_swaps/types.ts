@@ -133,6 +133,17 @@ export type SwapType =
   | 'raydium_amm'
   | 'raydium_launchlab';
 
+export type InstructionContext = {
+  // Transaction identification
+  transaction: { hash: string; index: number };
+  // Instruction identifier
+  instruction: { address: number[] };
+  // Block identifier
+  block: BlockRef;
+  // Transaction timestamp
+  timestamp: Date;
+};
+
 export type SolanaSwapCore = {
   // Dex where the swap occurred
   type: SwapType;
@@ -149,17 +160,10 @@ export type SolanaSwapCore = {
   slippage: number | null;
 };
 
-export type SolanaSwap = SolanaSwapCore & {
-  id: string;
-  // Transaction identification
-  transaction: { hash: string; index: number };
-  // Instruction identifier
-  instruction: { address: number[] };
-  // Block identifier
-  block: BlockRef;
-  // Transaction timestamp
-  timestamp: Date;
-};
+export type SolanaSwap = SolanaSwapCore &
+  InstructionContext & {
+    id: string;
+  };
 
 // Ref: https://github.com/raydium-io/raydium-sdk-V2/blob/4e4699ee9161e615ae5a1a557329a9fbd39d8a71/src/raydium/launchpad/curve/curve.ts#L479
 export enum LaunchLabCurveType {
@@ -171,4 +175,14 @@ export enum LaunchLabCurveType {
 export type LaunchLabConfig = {
   account: string;
   curveType: LaunchLabCurveType;
+};
+
+export type TokenHolders = {
+  token: string;
+  holders: number;
+};
+
+export type TokenHoldersEntry = TokenHolders & {
+  // Timestamp of last update as unix time
+  timestamp: number;
 };
