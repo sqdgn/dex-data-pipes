@@ -279,7 +279,7 @@ FROM swaps_raw;
 -- =================================================================================
 -- Traders stats
 
-CREATE VIEW IF NOT EXISTS trader_token_stats AS
+CREATE VIEW IF NOT EXISTS ${db_name}.trader_token_stats AS
 	SELECT
 		s1.account                          AS account,
 		s1.token_a                          AS token,
@@ -298,7 +298,7 @@ CREATE VIEW IF NOT EXISTS trader_token_stats AS
 	GROUP BY account, token;
 
 
-CREATE VIEW IF NOT EXISTS top_traders
+CREATE VIEW IF NOT EXISTS ${db_name}.top_traders
 AS
   WITH
     token_wins_loses AS (
@@ -308,7 +308,7 @@ AS
         sum(tts.tx_loses)                  AS tx_loses,
         countIf(tts.total_profit_usdc > 0) AS token_wins,
         countIf(tts.total_profit_usdc < 0) AS token_loses
-      FROM trader_token_stats(
+      FROM ${db_name}.trader_token_stats(
         start_date={start_date:DateTime},
         end_date={end_date:DateTime}
       ) tts
@@ -332,7 +332,7 @@ SELECT account,
 	min(timestamp) AS first_tx,
 	max(timestamp) AS last_tx,
 	tx_count / dateDiff('hour', first_tx, last_tx) AS tx_per_hour
-FROM base_swaps.swaps_raw s
+FROM ${db_name}.swaps_raw s
 JOIN
     token_wins_loses AS twl ON twl.account = s.account
 WHERE (timestamp BETWEEN {start_date:DateTime} AND {end_date:DateTime})

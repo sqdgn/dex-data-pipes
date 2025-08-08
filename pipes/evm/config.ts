@@ -48,7 +48,7 @@ export function getConfig() {
     network: network,
     factory: CONTRACTS.factory[network],
     dbPath: process.env.DB_PATH,
-    portal: PORTAL[network],
+    portal: process.env.PORTAL_URL ? { url: process.env.PORTAL_URL } : PORTAL[network],
     blockFrom,
   };
 }

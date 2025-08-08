@@ -38,7 +38,7 @@ export class TokenPositions {
     return Math.abs(x - y) < this.epsilon;
   }
 
-  public async load(swap: DbSwap, token: string) {
+  public load(swap: DbSwap, token: string) {
     const thisToken = swap.token_a === token ? 'a' : 'b';
     if (swap[`amount_${thisToken}`] > 0) {
       this.entry(swap[`amount_${thisToken}`], swap[`token_${thisToken}_usdc_price`]);

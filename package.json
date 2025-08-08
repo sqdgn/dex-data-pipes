@@ -13,6 +13,7 @@
   "packageManager": "yarn@4.5.1",
   "dependencies": {
     "@clickhouse/client": "^1.10.1",
+    "@datastructures-js/linked-list": "^6.1.3",
     "@sqd-pipes/core": "0.0.1-alpha.5",
     "@subsquid/borsh": "^0.3.0",
     "@subsquid/evm-abi": "^0.3.1",

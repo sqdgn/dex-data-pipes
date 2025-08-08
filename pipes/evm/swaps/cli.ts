@@ -6,6 +6,7 @@ import { createLogger } from '../../utils';
 import { getConfig } from '../config';
 import { inspect } from 'node:util';
 import { chRetry } from '../../../common/chRetry';
+import { SystemMonitoring } from '../../../common/system_monitoring';
 
 const config = getConfig();
 
@@ -14,6 +15,8 @@ const logger = createLogger('evm dex swaps').child({ network: config.network });
 logger.info(`Local database: ${config.dbPath}`);
 
 async function main() {
+  const sysMon = new SystemMonitoring();
+
   const clickhouse = await createClickhouseClient({
     capture_enhanced_stack_trace: true,
     clickhouse_settings: {
@@ -22,7 +25,7 @@ async function main() {
     },
     request_timeout: 900_000,
   });
-  await ensureTables(clickhouse, __dirname);
+  await ensureTables(clickhouse, __dirname, config.network, process.env.CLICKHOUSE_DB!);
 
   const ds = new EvmSwapStream({
     portal: process.env.PORTAL_URL ?? config.portal.url,
