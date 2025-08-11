@@ -7,7 +7,7 @@ CREATE VIEW IF NOT EXISTS ${db_name}.tokens_with_last_prices AS
     s.token_a as token,
     argMax(s.pool_address, swap_order) AS pool_address,
     argMax(best_pool.pool_address, swap_order) AS best_pool_address,
-    argMax(s.token_a_usdc_price, swap_order) as price
+    argMax(s.token_a_usdc_price, swap_order) as price_usdc
   FROM ${db_name}.solana_swaps_raw s
   LEFT JOIN
     ${db_name}.tokens_with_best_quote_pools(

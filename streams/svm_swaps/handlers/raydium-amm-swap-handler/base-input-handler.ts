@@ -27,7 +27,7 @@ export class RaydiumCpmmSwapBaseInputHandler extends RaydiumCpmmSwapBaseHandler 
       throw new Error('Expected either authority or owner account');
     }
 
-    const slippage = this.getSlippageSwapBaseInput(
+    const slippagePct = this.getSlippageSwapBaseInput(
       inputTokenAmount,
       outputTokenAmount,
       inputReserves,
@@ -50,7 +50,7 @@ export class RaydiumCpmmSwapBaseInputHandler extends RaydiumCpmmSwapBaseHandler 
         mintAcc: outputTokenAmount.mint,
         reserves: outputReserves,
       },
-      slippage,
+      slippagePct,
     };
   }
 
@@ -69,9 +69,9 @@ export class RaydiumCpmmSwapBaseInputHandler extends RaydiumCpmmSwapBaseHandler 
     const amountOut = Number(outputToken.amount) / 10 ** outputToken.decimals;
     const expectedAmountOut = Number(expectedAmountOutBigInt) / 10 ** outputToken.decimals;
 
-    const slippage = ((expectedAmountOut - amountOut) / expectedAmountOut) * 100;
+    const slippagePct = ((expectedAmountOut - amountOut) / expectedAmountOut) * 100;
 
-    return slippage;
+    return slippagePct;
   }
 
   private getAmountOut(amountIn: bigint, reserveIn: bigint, reserveOut: bigint): number {

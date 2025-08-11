@@ -33,11 +33,11 @@ CREATE TABLE IF NOT EXISTS solana_swaps_raw
     transaction_index                  UInt16,
     instruction_address                Array (UInt16),
     transaction_hash                   String,
-    slippage                           Float64,
+    slippage_pct                       Float64,
     pool_address                       String,
     pool_token_a_reserve               Float64,
     pool_token_b_reserve               Float64,
-    pool_tvl                           Float64 MATERIALIZED abs(pool_token_a_reserve * token_a_usdc_price) + abs(pool_token_b_reserve * token_b_usdc_price),
+    pool_tvl_usdc                      Float64 MATERIALIZED abs(pool_token_a_reserve * token_a_usdc_price) + abs(pool_token_b_reserve * token_b_usdc_price),
     sign                               Int8,
 
     -- Secondary indexes

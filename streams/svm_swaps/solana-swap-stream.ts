@@ -261,7 +261,7 @@ export class SolanaSwapsStream extends PortalAbstractStream<SolanaSwap, Args> {
           },
           timestamp: new Date(block.header.timestamp * 1000),
           poolAddress: swap.poolAddress,
-          slippage: swap.slippage,
+          slippagePct: swap.slippagePct,
         });
       }
     }
