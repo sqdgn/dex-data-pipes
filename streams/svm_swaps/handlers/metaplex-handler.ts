@@ -22,7 +22,9 @@ export const isCreateMetadataInstruction = (ins: Instruction): boolean => {
 
 export const isUpdateMetadataInstruction = (ins: Instruction): boolean => {
   const desc = getInstructionD1(ins);
-  return updateMetadataInstructions.some((i) => i.d1 === desc);
+  return (
+    ins.programId === metaplex.programId && updateMetadataInstructions.some((i) => i.d1 === desc)
+  );
 };
 
 function decodeCreateMetadataIns(ins: Instruction) {

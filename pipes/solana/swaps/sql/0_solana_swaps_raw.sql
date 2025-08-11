@@ -18,6 +18,8 @@ CREATE TABLE IF NOT EXISTS solana_swaps_raw
     token_b_pricing_pool               String,
     token_a_best_pricing_pool_selected Bool,
     token_b_best_pricing_pool_selected Bool,
+    token_a_issuance                   Float64,
+    token_b_issuance                   Float64,
     token_a_balance                    Float64,
     token_b_balance                    Float64,
     token_a_profit_usdc                Float64,
