@@ -134,7 +134,7 @@ export function handleMeteoraDamm(
       reserves: reserveOutAmount,
     },
     poolAddress: pool,
-    slippage: null,
+    slippagePct: null,
   };
 }
 
@@ -195,6 +195,6 @@ export function handleMeteoraDlmm(ins: Instruction, block: Block): SolanaSwapCor
       reserves: reserveOutAmount,
     },
     poolAddress,
-    slippage: null,
+    slippagePct: null,
   };
 }

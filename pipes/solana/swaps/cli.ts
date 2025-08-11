@@ -131,7 +131,7 @@ async function main() {
                   // Timestamp
                   timestamp: toUnixTime(s.timestamp),
                   // Slippage
-                  slippage: s.slippage,
+                  slippage_pct: s.slippagePct,
                   // Pool data
                   pool_address: s.poolAddress,
                   pool_token_a_reserve: asDecimalString(

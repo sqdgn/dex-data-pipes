@@ -22,7 +22,7 @@ export class RaydiumCpmmSwapBaseOutputHandler extends RaydiumCpmmSwapBaseHandler
       throw new Error('Expected either authority or owner account');
     }
 
-    const slippage = this.getSlippageSwapBaseOutput(
+    const slippagePct = this.getSlippageSwapBaseOutput(
       inputTokenAmount,
       outputTokenAmount,
       inputReserves,
@@ -45,7 +45,7 @@ export class RaydiumCpmmSwapBaseOutputHandler extends RaydiumCpmmSwapBaseHandler
         decimals: outputTokenAmount.decimals,
         reserves: outputReserves,
       },
-      slippage,
+      slippagePct,
     };
   }
 

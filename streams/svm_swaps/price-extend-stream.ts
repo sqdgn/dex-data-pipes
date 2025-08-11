@@ -30,7 +30,7 @@ type TokenPriceDbRow = {
   best_pool_address: string | null;
   pool_address: string;
   token: string;
-  price: number;
+  price_usdc: number;
 };
 
 function toStartOfPrevHour(date: Date) {
@@ -71,7 +71,7 @@ export class PriceExtendStream {
             token,
             pool_address,
             best_pool_address,
-            price
+            price_usdc
           FROM tokens_with_last_prices(
             min_timestamp={minTimestamp:DateTime},
             max_timestamp={maxTimestamp:DateTime}
@@ -99,7 +99,7 @@ export class PriceExtendStream {
       this.tokenPrices.set(row.token, {
         isBestPricingPoolSelected: row.best_pool_address === row.pool_address,
         poolAddress: row.pool_address,
-        priceUsdc: row.price,
+        priceUsdc: row.price_usdc,
       });
     }
     for (const token of USD_STABLECOINS) {

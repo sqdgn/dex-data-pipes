@@ -44,7 +44,7 @@ export function handleRaydiumClmm(ins: Instruction, block: Block): SolanaSwapCor
 
   const swapPrice = swapEvent ? getPoolPrice(swapEvent, tokenIn, tokenOut) : null;
 
-  const slippage =
+  const slippagePct =
     tokenIn && tokenOut && swapPrice && swapEvent
       ? getSlippage(tokenIn, tokenOut, inputTokenAmount, outputTokenAmount, swapEvent, swapPrice)
       : null;
@@ -68,7 +68,7 @@ export function handleRaydiumClmm(ins: Instruction, block: Block): SolanaSwapCor
       decimals: tokenOut.postDecimals,
       reserves: outputVaultToken.preAmount,
     },
-    slippage,
+    slippagePct,
   };
 }
 
