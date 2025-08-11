@@ -118,7 +118,10 @@ export type SolanaTokenMetadataUpdate = {
   uri?: string;
 };
 
-export type SolanaToken = SolanaTokenMintData & Partial<SolanaTokenMetadata>;
+export type SolanaToken = SolanaTokenMintData &
+  Partial<SolanaTokenMetadata> & {
+    issuance?: number;
+  };
 
 export type SwappedTokenData = SolanaToken & {
   amount: bigint;
@@ -189,4 +192,9 @@ export type TokenHolders = {
 export type TokenHoldersEntry = TokenHolders & {
   // Timestamp of last update as unix time
   timestamp: number;
+};
+
+export type TokenIssuanceChange = {
+  mintAcc: string;
+  issuanceChange: number;
 };

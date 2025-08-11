@@ -117,6 +117,9 @@ async function main() {
                     s.baseToken.priceData?.isBestPricingPoolSelected || false,
                   token_b_best_pricing_pool_selected:
                     s.baseToken.priceData?.isBestPricingPoolSelected || false,
+                  // Token issuances
+                  token_a_issuance: s.baseToken.issuance || 0,
+                  token_b_issuance: s.quoteToken.issuance || 0,
                   // Trader stats
                   token_a_balance: s.baseToken.balance,
                   token_b_balance: s.quoteToken.balance,

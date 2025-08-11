@@ -31,9 +31,13 @@ import {
   isUpdateMetadataInstruction,
 } from './handlers/metaplex-handler';
 import {
+  handleBurn,
   handleInitializeMint,
+  handleMint,
+  isBurnInstruction,
   isInitializeMintInstruction,
-} from './handlers/initialize-mint-handler';
+  isMintInstruction,
+} from './handlers/token-handler';
 import * as raydiumLaunchLabHandler from './handlers/raydium-launchlab-handler';
 import { MetadataStorage } from '../storage/metadata-storage';
 
@@ -100,9 +104,18 @@ export class SolanaSwapsStream extends PortalAbstractStream<SolanaSwap, Args> {
     const tokens: SolanaTokenMintData[] = [];
     const tokensMetadata: SolanaTokenMetadata[] = [];
     const tokenMetadataUpdates: SolanaTokenMetadataUpdate[] = [];
+    const issuanceChanges: Map<string, bigint> = new Map();
 
     for (const block of blocks) {
       if (!block.instructions) {
+        continue;
+      }
+      if (block.header.number <= this.storage.lastProcessedBlock) {
+        // Avoid processing the same blocks twice in case SQLite state is
+        // ahead of Clickhouse state
+        this.logger.warn(
+          `Token metadata from block ${block.header.number} already processed, skipping...`,
+        );
         continue;
       }
       for (const ins of block.instructions) {
@@ -126,13 +139,33 @@ export class SolanaSwapsStream extends PortalAbstractStream<SolanaSwap, Args> {
           tokenMetadataUpdates.push(tokenMetadataUpdate);
           continue;
         }
+        // Mint new tokens
+        if (isMintInstruction(ins)) {
+          const mint = handleMint(ins);
+          const currentChange = issuanceChanges.get(mint.mintAcc) || 0n;
+          issuanceChanges.set(mint.mintAcc, currentChange + mint.amount);
+          continue;
+        }
+        // Burn tokens
+        if (isBurnInstruction(ins)) {
+          const burn = handleBurn(ins);
+          const currentChange = issuanceChanges.get(burn.mintAcc) || 0n;
+          issuanceChanges.set(burn.mintAcc, currentChange - burn.amount);
+          continue;
+        }
       }
     }
 
     timeIt(
       this.logger,
       'Processing tokens batch',
-      () => this.storage.tokens.processBatch(tokens, tokensMetadata, tokenMetadataUpdates),
+      () =>
+        this.storage.tokens.processBatch(
+          tokens,
+          tokensMetadata,
+          tokenMetadataUpdates,
+          issuanceChanges,
+        ),
       {
         tokens: tokens.length,
         tokensMetadata: tokensMetadata.length,
@@ -285,10 +318,18 @@ export class SolanaSwapsStream extends PortalAbstractStream<SolanaSwap, Args> {
       type: 'solana',
       fields: swapStreamFieldsSelection,
       instructions: [
-        // Token mint initialization instructions
         {
           programId: [token.programId],
-          d1: [token.instructions.initializeMint.d1, token.instructions.initializeMint2.d1],
+          d1: [
+            // Mint initialization instructions
+            token.instructions.initializeMint.d1,
+            token.instructions.initializeMint2.d1,
+            // Instructions affecting token market cap
+            token.instructions.mintTo.d1,
+            token.instructions.mintToChecked.d1,
+            token.instructions.burn.d1,
+            token.instructions.burnChecked.d1,
+          ],
           isCommitted: true, // where successfully committed
           innerInstructions: true, // inner instructions
           transaction: true, // transaction, that executed the given instruction
@@ -296,7 +337,16 @@ export class SolanaSwapsStream extends PortalAbstractStream<SolanaSwap, Args> {
         },
         {
           programId: [token2022.programId],
-          d1: [token2022.instructions.initializeMint.d1, token2022.instructions.initializeMint2.d1],
+          d1: [
+            // Mint initialization instructions
+            token2022.instructions.initializeMint.d1,
+            token2022.instructions.initializeMint2.d1,
+            // Instructions affecting token market cap
+            token2022.instructions.mintTo.d1,
+            token2022.instructions.mintToChecked.d1,
+            token2022.instructions.burn.d1,
+            token2022.instructions.burnChecked.d1,
+          ],
           isCommitted: true, // where successfully committed
           innerInstructions: true, // inner instructions
           transaction: true, // transaction, that executed the given instruction
@@ -434,6 +484,8 @@ export class SolanaSwapsStream extends PortalAbstractStream<SolanaSwap, Args> {
     return source.pipeThrough(
       new TransformStream({
         transform: ({ blocks }, controller) => {
+          const [lastBlock] = blocks.slice(-1);
+
           this.storage.beginTransaction();
 
           // Process metadata instructions first
@@ -445,7 +497,7 @@ export class SolanaSwapsStream extends PortalAbstractStream<SolanaSwap, Args> {
 
           this.processConfigInstructions(blocks);
 
-          this.storage.commit();
+          this.storage.commit(lastBlock.header.number);
 
           if (this.options.args.onlyMeta) {
             // If onlyMeta is true - just ack the batch and return
