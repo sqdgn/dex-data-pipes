@@ -356,6 +356,9 @@ export function getTokenReserves(
  * @returns The decimal string representation of the token amount
  */
 export function asDecimalString(amount: bigint, decimals: number) {
+  if (decimals === 0) {
+    return amount.toString();
+  }
   const sign = amount >= 0 ? '' : '-';
   const amountStr = amount.toString().replace('-', '');
   const digits = amountStr.length;

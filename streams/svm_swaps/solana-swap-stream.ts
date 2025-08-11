@@ -156,22 +156,7 @@ export class SolanaSwapsStream extends PortalAbstractStream<SolanaSwap, Args> {
       }
     }
 
-    timeIt(
-      this.logger,
-      'Processing tokens batch',
-      () =>
-        this.storage.tokens.processBatch(
-          tokens,
-          tokensMetadata,
-          tokenMetadataUpdates,
-          issuanceChanges,
-        ),
-      {
-        tokens: tokens.length,
-        tokensMetadata: tokensMetadata.length,
-        tokenMetadataUpdates: tokenMetadataUpdates.length,
-      },
-    );
+    this.storage.tokens.processBatch(tokens, tokensMetadata, tokenMetadataUpdates, issuanceChanges);
   }
 
   processConfigInstructions(blocks: SwapStreamBlock[]) {
@@ -497,7 +482,9 @@ export class SolanaSwapsStream extends PortalAbstractStream<SolanaSwap, Args> {
 
           this.processConfigInstructions(blocks);
 
-          this.storage.commit(lastBlock.header.number);
+          timeIt(this.logger, 'Committing SQLite changes', () => {
+            this.storage.commit(lastBlock.header.number);
+          });
 
           if (this.options.args.onlyMeta) {
             // If onlyMeta is true - just ack the batch and return

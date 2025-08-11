@@ -109,14 +109,10 @@ async function main() {
                   token_b_decimals: s.quoteToken.decimals,
                   token_b_symbol: s.quoteToken.symbol || '[unknown]',
                   // Token prices
-                  token_a_usdc_price: s.baseToken.priceData?.priceUsdc || 0,
-                  token_b_usdc_price: s.quoteToken.priceData?.priceUsdc || 0,
-                  token_a_pricing_pool: s.baseToken.priceData?.poolAddress || '',
-                  token_b_pricing_pool: s.quoteToken.priceData?.poolAddress || '',
-                  token_a_best_pricing_pool_selected:
-                    s.baseToken.priceData?.isBestPricingPoolSelected || false,
-                  token_b_best_pricing_pool_selected:
-                    s.baseToken.priceData?.isBestPricingPoolSelected || false,
+                  token_a_usdc_price: s.baseToken.priceUsdc,
+                  token_b_usdc_price: s.quoteToken.priceUsdc,
+                  token_a_pricing_pool: s.baseToken.usdcPricingPool?.address || '',
+                  token_b_pricing_pool: s.quoteToken.usdcPricingPool?.address || '',
                   // Token issuances
                   token_a_issuance: s.baseToken.issuance || 0,
                   token_b_issuance: s.quoteToken.issuance || 0,

@@ -14,7 +14,13 @@ export type TokenPriceData = {
 };
 
 export type ExtendedSwappedTokenData = SwappedTokenData & {
-  priceData?: TokenPriceData;
+  // Pool used to price the token in USDC (if differs from current pool)
+  usdcPricingPool?: {
+    address: string;
+    // Whether the pricing pool is the best (highest volume) pool based on available data
+    isBest: boolean;
+  };
+  priceUsdc: number;
   balance: number;
   wins: number;
   loses: number;
@@ -161,6 +167,7 @@ export class PriceExtendStream {
   private initExtendedSwappedTokenData(swappedToken: SwappedTokenData): ExtendedSwappedTokenData {
     return {
       ...swappedToken,
+      priceUsdc: 0,
       balance: 0,
       wins: 0,
       loses: 0,
@@ -211,13 +218,25 @@ export class PriceExtendStream {
     let tokenAPriceData = this.tokenPrices.get(tokenA.mintAcc);
     const tokenBPriceData = this.tokenPrices.get(tokenB.mintAcc);
     const tokenBIsAllowedQuote = QUOTE_TOKENS.includes(tokenB.mintAcc);
+    const extTokenA: ExtendedSwappedTokenData = this.initExtendedSwappedTokenData(tokenA);
+    const extTokenB: ExtendedSwappedTokenData = this.initExtendedSwappedTokenData(tokenB);
 
-    const priceBUsdc = tokenBPriceData?.priceUsdc || 0;
-    let priceAUsdc = 0;
-    if (tokenBIsAllowedQuote && priceBUsdc && tokenA.amount !== 0n && tokenB.amount !== 0n) {
+    extTokenB.priceUsdc = tokenBPriceData?.priceUsdc || 0;
+    extTokenB.usdcPricingPool = tokenBPriceData
+      ? {
+          address: tokenBPriceData.poolAddress,
+          isBest: tokenBPriceData.isBestPricingPoolSelected,
+        }
+      : undefined;
+    if (
+      tokenBIsAllowedQuote &&
+      extTokenB.priceUsdc &&
+      tokenA.amount !== 0n &&
+      tokenB.amount !== 0n
+    ) {
       // If token B is an allowed quote token and we have its USDC price,
       // we use it to calculate priceAUsdc
-      priceAUsdc = getPrice(tokenA, tokenB) * priceBUsdc;
+      extTokenA.priceUsdc = getPrice(tokenA, tokenB) * extTokenB.priceUsdc;
       // Additionally if there is no best pool for token A
       // or current pool is the best pool, we update token A price in the cache
       if (
@@ -225,22 +244,21 @@ export class PriceExtendStream {
         swap.poolAddress === tokenAPriceData.poolAddress
       ) {
         tokenAPriceData = {
-          priceUsdc: priceAUsdc,
+          priceUsdc: extTokenA.priceUsdc,
           poolAddress: swap.poolAddress,
           isBestPricingPoolSelected: tokenAPriceData?.isBestPricingPoolSelected || false,
         };
         this.tokenPrices.set(tokenA.mintAcc, tokenAPriceData);
       }
-    } else {
+    } else if (tokenAPriceData) {
       // Otherwise we use last known best pool price of token A
-      priceAUsdc = tokenAPriceData?.priceUsdc || 0;
+      extTokenA.priceUsdc = tokenAPriceData.priceUsdc;
+      extTokenA.usdcPricingPool = {
+        address: tokenAPriceData.poolAddress,
+        isBest: tokenAPriceData.isBestPricingPoolSelected,
+      };
     }
 
-    const extTokenA: ExtendedSwappedTokenData = this.initExtendedSwappedTokenData(tokenA);
-    const extTokenB: ExtendedSwappedTokenData = this.initExtendedSwappedTokenData(tokenB);
-
-    extTokenA.priceData = tokenAPriceData ? { ...tokenAPriceData } : undefined;
-    extTokenB.priceData = tokenBPriceData ? { ...tokenBPriceData } : undefined;
     extTokenA.amount = tokenAIsOutputToken ? tokenA.amount : -tokenA.amount;
     extTokenB.amount = tokenAIsOutputToken ? -tokenB.amount : tokenB.amount;
 
@@ -253,16 +271,16 @@ export class PriceExtendStream {
 
       if (tokenAIsOutputToken) {
         // TOKEN A - ENTRY
-        positions.a.entry(amountA, priceAUsdc);
+        positions.a.entry(amountA, extTokenA.priceUsdc);
         // TOKEN B - EXIT
-        const exitSummary = positions.b.exit(amountB, priceBUsdc);
+        const exitSummary = positions.b.exit(amountB, extTokenB.priceUsdc);
         extTokenB.positionExitSummary = exitSummary;
       } else {
         // TOKEN A - EXIT
-        const exitSummary = positions.a.exit(amountA, priceAUsdc);
+        const exitSummary = positions.a.exit(amountA, extTokenA.priceUsdc);
         extTokenA.positionExitSummary = exitSummary;
         // TOKEN B - ENTRY
-        positions.b.entry(amountB, priceBUsdc);
+        positions.b.entry(amountB, extTokenB.priceUsdc);
       }
       extTokenA.balance = positions.a.totalBalance;
       extTokenB.balance = positions.b.totalBalance;
