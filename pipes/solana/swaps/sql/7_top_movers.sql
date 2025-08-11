@@ -30,7 +30,7 @@ CREATE MATERIALIZED VIEW IF NOT EXISTS daily_top_movers_mv
 	      any(`dex`)                                                 AS `dex`,
 	      argMinState(`token_a_usdc_price`, `swap_order`)            AS `open_price`,
 	      argMaxState(`token_a_usdc_price`, `swap_order`)            AS `close_price`,
-	      sumSimpleState(abs(amount_a * token_a_usdc_price) * sign)  AS `volume`
+	      sumSimpleState(abs(amount_b * token_b_usdc_price) * sign)  AS `volume`
 	    FROM
 	      `solana_swaps_raw` AS `swap`
 	    WHERE
@@ -39,7 +39,7 @@ CREATE MATERIALIZED VIEW IF NOT EXISTS daily_top_movers_mv
 	--      Filter out swaps that affect the price too greatly (>10%)
 	      slippage < 10 AND
 	--      Filter out negligable amount swaps
-	      abs(amount_a * token_a_usdc_price) >= 0.01
+	      abs(amount_b * token_b_usdc_price) >= 0.01
 	    GROUP BY `day`, `token_a`, `pool_address`
   );
  

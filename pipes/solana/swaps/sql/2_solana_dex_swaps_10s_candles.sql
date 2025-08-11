@@ -46,10 +46,16 @@ SELECT toStartOfInterval(timestamp, INTERVAL 10 SECOND)                 AS times
        argMaxState(token_b_usdc_price, swap_order)                      AS close_token_b,
 --     Other stats
        sumSimpleState(sign)                                             AS count,
-       sumSimpleState(abs(amount_a * token_a_usdc_price) * sign)        AS volume_usdc,
+       sumSimpleState(abs(amount_b * token_b_usdc_price) * sign)        AS volume_usdc,
        avgState(slippage)                                               AS avg_slippage,
        maxSimpleState(pool_tvl)                                         AS max_pool_tvl
 FROM solana_swaps_raw original
--- Temporarily we filter out that swaps completely
-WHERE slippage < 10 and abs(amount_a * token_a_usdc_price) >= 0.01 and amount_a != 0 and amount_b != 0
+-- Temporarily we filter out swaps which...
+WHERE
+       -- Has a slippage >= 10%
+       slippage < 10
+       -- Were for a very low amount (< 0.01 USDC)
+       and abs(amount_b * token_b_usdc_price) >= 0.01
+       -- Had either amount_a or amount_b == 0
+       and (amount_a != 0 and amount_b != 0)
 GROUP BY pool_address, token_a, token_b, dex, timestamp;

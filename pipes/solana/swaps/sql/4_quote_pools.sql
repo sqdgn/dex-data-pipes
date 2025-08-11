@@ -20,7 +20,7 @@ AS
           token_b,
           dex,
           pool_address,
-          sumSimpleState(abs(amount_a * token_a_usdc_price) * sign) as volume_1h
+          sumSimpleState(abs(amount_b * token_b_usdc_price) * sign) as volume_1h
     FROM solana_swaps_raw
     WHERE
       token_b IN allowed_quote_tokens()
