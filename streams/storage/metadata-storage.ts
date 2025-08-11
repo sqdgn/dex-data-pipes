@@ -40,9 +40,11 @@ export class MetadataStorage {
   }
 
   commit(blockNumber: number) {
-    this.statements.setLastProcessedBlock.run({ lastProcessedBlock: blockNumber });
+    if (blockNumber > this.lastProcessedBlock) {
+      this.statements.setLastProcessedBlock.run({ lastProcessedBlock: blockNumber });
+      this._lastProcessedBlock = blockNumber;
+    }
     this.db.exec(`COMMIT`);
-    this._lastProcessedBlock = blockNumber;
   }
 
   public get lastProcessedBlock() {
