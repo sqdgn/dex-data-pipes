@@ -373,21 +373,26 @@ export function timeIt<T>(
   label: string,
   fn: () => T,
   context?: Record<string, unknown>,
+  logEvery = 1,
+  statOver = 100,
 ): T {
   const start = performance.now();
   const logTime = () => {
     const duration = performance.now() - start;
-    // Keep only the last 100 times
-    const times = timeItMap.get(label)?.slice(-99) || [];
+    let times = timeItMap.get(label) || [];
     times.push(duration);
+    // Log only every 10000 times
+    if (times.length % logEvery === 0) {
+      times = times.slice(-statOver);
+      logger.debug(
+        `${label} took ${duration.toFixed(2)}ms (last ${times.length}: ` +
+          `min=${_.min(times)?.toFixed(2)}, ` +
+          `max=${_.max(times)?.toFixed(2)}, ` +
+          `avg=${_.mean(times).toFixed(2)})` +
+          (context ? ` ${JSON.stringify(context)}` : ''),
+      );
+    }
     timeItMap.set(label, times);
-    logger.debug(
-      `${label} took ${duration.toFixed(2)}ms (last ${times.length}: ` +
-        `min=${_.min(times)?.toFixed(2)}, ` +
-        `max=${_.max(times)?.toFixed(2)}, ` +
-        `avg=${_.mean(times).toFixed(2)})` +
-        (context ? ` ${JSON.stringify(context)}` : ''),
-    );
   };
   const r = fn();
   if (r instanceof Promise) {

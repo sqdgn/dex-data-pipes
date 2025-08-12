@@ -201,100 +201,162 @@ export class PriceExtendStream {
   }
 
   private async processSwap(swap: SolanaSwap): Promise<ExtendedSolanaSwap> {
-    const [tokenA, tokenB] = sortTokenPair(swap.input, swap.output);
-    const tokenAIsOutputToken = swap.output.mintAcc === tokenA.mintAcc;
+    return timeIt(
+      this.logger,
+      'Process swap inner',
+      async () => {
+        const [tokenA, tokenB] = timeIt(
+          this.logger,
+          'Sorting token pair',
+          () => sortTokenPair(swap.input, swap.output),
+          undefined,
+          10000,
+          10000,
+        );
+        const tokenAIsOutputToken = swap.output.mintAcc === tokenA.mintAcc;
 
-    if (
-      !this.bestPoolMaxDate ||
-      toStartOfPrevHour(swap.timestamp).getTime() !== this.bestPoolMaxDate.getTime()
-    ) {
-      await this.reloadTokenPrices(toStartOfPrevHour(swap.timestamp));
-    }
+        await timeIt(
+          this.logger,
+          'Checking bestPoolMaxDate',
+          async () => {
+            if (
+              !this.bestPoolMaxDate ||
+              toStartOfPrevHour(swap.timestamp).getTime() !== this.bestPoolMaxDate.getTime()
+            ) {
+              await timeIt(this.logger, 'Reloading token prices', () =>
+                this.reloadTokenPrices(toStartOfPrevHour(swap.timestamp)),
+              );
+            }
+          },
+          undefined,
+          10000,
+          10000,
+        );
 
-    // FIXME: Unsafe conversion to number
-    const amountA = Number(tokenA.amount) / 10 ** tokenA.decimals;
-    const amountB = Number(tokenB.amount) / 10 ** tokenB.decimals;
+        // FIXME: Unsafe conversion to number
+        const { extTokenA, extTokenB, amountA, amountB, tokenBIsAllowedQuote } = timeIt(
+          this.logger,
+          'Determining prices',
+          () => {
+            const amountA = Number(tokenA.amount) / 10 ** tokenA.decimals;
+            const amountB = Number(tokenB.amount) / 10 ** tokenB.decimals;
 
-    let tokenAPriceData = this.tokenPrices.get(tokenA.mintAcc);
-    const tokenBPriceData = this.tokenPrices.get(tokenB.mintAcc);
-    const tokenBIsAllowedQuote = QUOTE_TOKENS.includes(tokenB.mintAcc);
-    const extTokenA: ExtendedSwappedTokenData = this.initExtendedSwappedTokenData(tokenA);
-    const extTokenB: ExtendedSwappedTokenData = this.initExtendedSwappedTokenData(tokenB);
+            let tokenAPriceData = this.tokenPrices.get(tokenA.mintAcc);
+            const tokenBPriceData = this.tokenPrices.get(tokenB.mintAcc);
+            const tokenBIsAllowedQuote = QUOTE_TOKENS.includes(tokenB.mintAcc);
+            const extTokenA: ExtendedSwappedTokenData = this.initExtendedSwappedTokenData(tokenA);
+            const extTokenB: ExtendedSwappedTokenData = this.initExtendedSwappedTokenData(tokenB);
 
-    extTokenB.priceUsdc = tokenBPriceData?.priceUsdc || 0;
-    extTokenB.usdcPricingPool = tokenBPriceData
-      ? {
-          address: tokenBPriceData.poolAddress,
-          isBest: tokenBPriceData.isBestPricingPoolSelected,
+            extTokenB.priceUsdc = tokenBPriceData?.priceUsdc || 0;
+            extTokenB.usdcPricingPool = tokenBPriceData
+              ? {
+                  address: tokenBPriceData.poolAddress,
+                  isBest: tokenBPriceData.isBestPricingPoolSelected,
+                }
+              : undefined;
+            if (
+              tokenBIsAllowedQuote &&
+              extTokenB.priceUsdc &&
+              tokenA.amount !== 0n &&
+              tokenB.amount !== 0n
+            ) {
+              // If token B is an allowed quote token and we have its USDC price,
+              // we use it to calculate priceAUsdc
+              extTokenA.priceUsdc = getPrice(tokenA, tokenB) * extTokenB.priceUsdc;
+              // Additionally if there is no best pool for token A
+              // or current pool is the best pool, we update token A price in the cache
+              if (
+                !tokenAPriceData?.isBestPricingPoolSelected ||
+                swap.poolAddress === tokenAPriceData.poolAddress
+              ) {
+                tokenAPriceData = {
+                  priceUsdc: extTokenA.priceUsdc,
+                  poolAddress: swap.poolAddress,
+                  isBestPricingPoolSelected: tokenAPriceData?.isBestPricingPoolSelected || false,
+                };
+                this.tokenPrices.set(tokenA.mintAcc, tokenAPriceData);
+              }
+            } else if (tokenAPriceData) {
+              // Otherwise we use last known best pool price of token A
+              extTokenA.priceUsdc = tokenAPriceData.priceUsdc;
+              extTokenA.usdcPricingPool = {
+                address: tokenAPriceData.poolAddress,
+                isBest: tokenAPriceData.isBestPricingPoolSelected,
+              };
+            }
+
+            extTokenA.amount = tokenAIsOutputToken ? tokenA.amount : -tokenA.amount;
+            extTokenB.amount = tokenAIsOutputToken ? -tokenB.amount : tokenB.amount;
+
+            return { extTokenA, extTokenB, amountA, amountB, tokenBIsAllowedQuote };
+          },
+          undefined,
+          10000,
+          10000,
+        );
+
+        // For now we only process positions against allowed quote tokens
+        if (tokenBIsAllowedQuote && amountA > 0 && amountB > 0) {
+          const positions = await timeIt(
+            this.logger,
+            'Get/load token positions',
+            async () => ({
+              a: await this.getOrLoadTokenPositions(swap.account, tokenA.mintAcc),
+              b: await this.getOrLoadTokenPositions(swap.account, tokenB.mintAcc),
+            }),
+            undefined,
+            10000,
+            10000,
+          );
+
+          timeIt(
+            this.logger,
+            'Processing positions',
+            () => {
+              if (tokenAIsOutputToken) {
+                // TOKEN A - ENTRY
+                positions.a.entry(amountA, extTokenA.priceUsdc);
+                // TOKEN B - EXIT
+                const exitSummary = positions.b.exit(amountB, extTokenB.priceUsdc);
+                extTokenB.positionExitSummary = exitSummary;
+              } else {
+                // TOKEN A - EXIT
+                const exitSummary = positions.a.exit(amountA, extTokenA.priceUsdc);
+                extTokenA.positionExitSummary = exitSummary;
+                // TOKEN B - ENTRY
+                positions.b.entry(amountB, extTokenB.priceUsdc);
+              }
+              extTokenA.balance = positions.a.totalBalance;
+              extTokenB.balance = positions.b.totalBalance;
+              extTokenA.wins = positions.a.wins;
+              extTokenB.wins = positions.b.wins;
+              extTokenA.loses = positions.a.loses;
+              extTokenB.loses = positions.b.loses;
+            },
+            undefined,
+            10000,
+            10000,
+          );
         }
-      : undefined;
-    if (
-      tokenBIsAllowedQuote &&
-      extTokenB.priceUsdc &&
-      tokenA.amount !== 0n &&
-      tokenB.amount !== 0n
-    ) {
-      // If token B is an allowed quote token and we have its USDC price,
-      // we use it to calculate priceAUsdc
-      extTokenA.priceUsdc = getPrice(tokenA, tokenB) * extTokenB.priceUsdc;
-      // Additionally if there is no best pool for token A
-      // or current pool is the best pool, we update token A price in the cache
-      if (
-        !tokenAPriceData?.isBestPricingPoolSelected ||
-        swap.poolAddress === tokenAPriceData.poolAddress
-      ) {
-        tokenAPriceData = {
-          priceUsdc: extTokenA.priceUsdc,
-          poolAddress: swap.poolAddress,
-          isBestPricingPoolSelected: tokenAPriceData?.isBestPricingPoolSelected || false,
-        };
-        this.tokenPrices.set(tokenA.mintAcc, tokenAPriceData);
-      }
-    } else if (tokenAPriceData) {
-      // Otherwise we use last known best pool price of token A
-      extTokenA.priceUsdc = tokenAPriceData.priceUsdc;
-      extTokenA.usdcPricingPool = {
-        address: tokenAPriceData.poolAddress,
-        isBest: tokenAPriceData.isBestPricingPoolSelected,
-      };
-    }
 
-    extTokenA.amount = tokenAIsOutputToken ? tokenA.amount : -tokenA.amount;
-    extTokenB.amount = tokenAIsOutputToken ? -tokenB.amount : tokenB.amount;
-
-    // For now we only process positions against allowed quote tokens
-    if (tokenBIsAllowedQuote && amountA > 0 && amountB > 0) {
-      const positions = {
-        a: await this.getOrLoadTokenPositions(swap.account, tokenA.mintAcc),
-        b: await this.getOrLoadTokenPositions(swap.account, tokenB.mintAcc),
-      };
-
-      if (tokenAIsOutputToken) {
-        // TOKEN A - ENTRY
-        positions.a.entry(amountA, extTokenA.priceUsdc);
-        // TOKEN B - EXIT
-        const exitSummary = positions.b.exit(amountB, extTokenB.priceUsdc);
-        extTokenB.positionExitSummary = exitSummary;
-      } else {
-        // TOKEN A - EXIT
-        const exitSummary = positions.a.exit(amountA, extTokenA.priceUsdc);
-        extTokenA.positionExitSummary = exitSummary;
-        // TOKEN B - ENTRY
-        positions.b.entry(amountB, extTokenB.priceUsdc);
-      }
-      extTokenA.balance = positions.a.totalBalance;
-      extTokenB.balance = positions.b.totalBalance;
-      extTokenA.wins = positions.a.wins;
-      extTokenB.wins = positions.b.wins;
-      extTokenA.loses = positions.a.loses;
-      extTokenB.loses = positions.b.loses;
-    }
-
-    return {
-      ...swap,
-      baseToken: extTokenA,
-      quoteToken: extTokenB,
-    };
+        const res = timeIt(
+          this.logger,
+          'Preparing res',
+          () => ({
+            ...swap,
+            baseToken: extTokenA,
+            quoteToken: extTokenB,
+          }),
+          undefined,
+          10000,
+          10000,
+        );
+        return res;
+      },
+      undefined,
+      10000,
+      10000,
+    );
   }
 
   private logAndResetCacheStats() {
@@ -375,10 +437,21 @@ export class PriceExtendStream {
         await timeIt(this.logger, 'Extending swaps', async () => {
           const extendedSwaps: ExtendedSolanaSwap[] = [];
           await this.preloadMissingAccountPositions(swaps);
-          for (const swap of swaps) {
-            const extendedSwap = await this.processSwap(swap);
-            extendedSwaps.push(extendedSwap);
-          }
+          await timeIt(this.logger, 'Process swap loop', async () => {
+            for (const swap of swaps) {
+              await timeIt(
+                this.logger,
+                'Processing single swap',
+                async () => {
+                  const extendedSwap = await this.processSwap(swap);
+                  extendedSwaps.push(extendedSwap);
+                },
+                undefined,
+                10000,
+                10000,
+              );
+            }
+          });
           this.logAndResetCacheStats();
           const [lastSwap] = swaps.slice(-1);
           this.accountPositions.dumpIfNeeded(this.cacheDumpPath, lastSwap.block.number);
