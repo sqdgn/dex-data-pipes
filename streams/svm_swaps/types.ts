@@ -1,6 +1,7 @@
 import { FieldSelection } from '@subsquid/solana-stream';
 import type * as PortalData from '@subsquid/solana-normalization';
 import { BlockRef } from '@sqd-pipes/core';
+import Decimal from 'decimal.js';
 
 type WithPickedFields<
   Selection extends FieldSelection,
@@ -120,7 +121,7 @@ export type SolanaTokenMetadataUpdate = {
 
 export type SolanaToken = SolanaTokenMintData &
   Partial<SolanaTokenMetadata> & {
-    issuance?: number;
+    issuance?: Decimal;
   };
 
 export type SwappedTokenData = SolanaToken & {
@@ -196,5 +197,5 @@ export type TokenHoldersEntry = TokenHolders & {
 
 export type TokenIssuanceChange = {
   mintAcc: string;
-  issuanceChange: number;
+  issuanceChange: bigint;
 };

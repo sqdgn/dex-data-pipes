@@ -8,6 +8,7 @@ import {
   TokenIssuanceChange,
 } from '../svm_swaps/types';
 import { TOKENS } from '../svm_swaps/utils';
+import Decimal from 'decimal.js';
 
 const KNOWN_TOKENS = new Map([
   [TOKENS.SOL, { mintAcc: TOKENS.SOL, decimals: 9, symbol: 'SOL' }],
@@ -17,7 +18,7 @@ const KNOWN_TOKENS = new Map([
 ]);
 
 export class TokenStorage {
-  private static insertKeys: (keyof SolanaToken)[] = [
+  private static columns: (keyof SolanaToken)[] = [
     'mintAcc',
     'decimals',
     'issuance',
@@ -31,9 +32,9 @@ export class TokenStorage {
   ];
   private readonly queries = {
     insert: `INSERT OR IGNORE INTO "spl_tokens" (
-            ${TokenStorage.insertKeys.join(', ')}
+            ${TokenStorage.columns.join(', ')}
         ) VALUES (
-            ${TokenStorage.insertKeys.map((k) => `:${k}`).join(', ')}
+            ${TokenStorage.columns.map((k) => `:${k}`).join(', ')}
         )`,
     setMetadata: `UPDATE "spl_tokens" SET
             metadataAcc=:metadataAcc,
@@ -48,7 +49,7 @@ export class TokenStorage {
     updateIssuance: `UPDATE
           "spl_tokens" AS t
         SET
-          issuance = COALESCE(t.issuance, 0) + (:issuanceChange / power(10, t.decimals))
+          issuance = COALESCE(t.issuance, 0) + (CAST(:issuanceChange AS NUMERIC) / power(10, t.decimals))
         WHERE mintAcc=:mintAcc`,
   };
   private readonly statements: { [K in keyof TokenStorage['queries']]: StatementSync };
@@ -162,8 +163,7 @@ export class TokenStorage {
     this.updateTokensIssuance(
       Array.from(issuanceChangesByMint.entries()).map(([mintAcc, issuanceChange]) => ({
         mintAcc,
-        // FIXME: Unsafe conversion to number
-        issuanceChange: Number(issuanceChange),
+        issuanceChange,
       })),
     );
   }
@@ -209,10 +209,12 @@ export class TokenStorage {
       if (KNOWN_TOKENS.has(mintAcc)) {
         continue;
       }
-      this.statements.updateIssuance.run({ mintAcc, issuanceChange });
+      this.statements.updateIssuance.run({ mintAcc, issuanceChange: issuanceChange.toString() });
       const cached = this.tokenByMintAcc.get(mintAcc);
       if (cached) {
-        cached.issuance = (cached.issuance || 0) + issuanceChange / Math.pow(10, cached.decimals);
+        cached.issuance = (cached.issuance || new Decimal(0)).add(
+          new Decimal(issuanceChange).div(Math.pow(10, cached.decimals)),
+        );
       }
     }
   }
@@ -221,13 +223,23 @@ export class TokenStorage {
     if (!mintAccs.length) return {};
 
     const params = new Array(mintAccs.length).fill('?').join(',');
+    const selectColumns = TokenStorage.columns.map((c) =>
+      c === 'issuance' ? `CAST(${c} AS TEXT) AS ${c}` : c,
+    );
     const select = this.db.prepare(`
-        SELECT *
+        SELECT
+          ${selectColumns.join(',')}
         FROM "spl_tokens"
         WHERE "mintAcc" IN (${params})
     `);
 
     const tokens = select.all(...mintAccs) as SolanaToken[];
+
+    for (const token of tokens) {
+      if (token.issuance) {
+        token.issuance = new Decimal(token.issuance);
+      }
+    }
 
     return tokens.reduce(
       (res, token) => ({

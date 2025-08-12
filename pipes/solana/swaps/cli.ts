@@ -114,8 +114,8 @@ async function main() {
                   token_a_pricing_pool: s.baseToken.usdcPricingPool?.address || '',
                   token_b_pricing_pool: s.quoteToken.usdcPricingPool?.address || '',
                   // Token issuances
-                  token_a_issuance: s.baseToken.issuance || 0,
-                  token_b_issuance: s.quoteToken.issuance || 0,
+                  token_a_issuance: s.baseToken.issuance?.toString() || 0,
+                  token_b_issuance: s.quoteToken.issuance?.toString() || 0,
                   // Trader stats
                   token_a_balance: s.baseToken.balance,
                   token_b_balance: s.quoteToken.balance,
