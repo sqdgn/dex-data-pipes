@@ -11,16 +11,17 @@ import { TOKENS } from '../svm_swaps/utils';
 import Decimal from 'decimal.js';
 
 const KNOWN_TOKENS = new Map([
-  [TOKENS.SOL, { mintAcc: TOKENS.SOL, decimals: 9, symbol: 'SOL' }],
-  [TOKENS.USDC, { mintAcc: TOKENS.USDC, decimals: 6, symbol: 'USDC' }],
-  [TOKENS.USDT, { mintAcc: TOKENS.USDT, decimals: 6, symbol: 'USDT' }],
-  [TOKENS.USDS, { mintAcc: TOKENS.USDS, decimals: 6, symbol: 'USDS' }],
+  [TOKENS.SOL, { mintAcc: TOKENS.SOL, decimals: 9, symbol: 'SOL', issuanceTracked: 0 }],
+  [TOKENS.USDC, { mintAcc: TOKENS.USDC, decimals: 6, symbol: 'USDC', issuanceTracked: 0 }],
+  [TOKENS.USDT, { mintAcc: TOKENS.USDT, decimals: 6, symbol: 'USDT', issuanceTracked: 0 }],
+  [TOKENS.USDS, { mintAcc: TOKENS.USDS, decimals: 6, symbol: 'USDS', issuanceTracked: 0 }],
 ]);
 
 export class TokenStorage {
   private static columns: (keyof SolanaToken)[] = [
     'mintAcc',
     'decimals',
+    'issuanceTracked',
     'issuance',
     'metadataAcc',
     'name',
@@ -50,7 +51,7 @@ export class TokenStorage {
           "spl_tokens" AS t
         SET
           issuance = COALESCE(t.issuance, 0) + (CAST(:issuanceChange AS NUMERIC) / power(10, t.decimals))
-        WHERE mintAcc=:mintAcc`,
+        WHERE mintAcc=:mintAcc AND issuanceTracked=1`,
   };
   private readonly statements: { [K in keyof TokenStorage['queries']]: StatementSync };
   private tokenByMintAcc: Map<string, SolanaToken> = new Map();
@@ -62,6 +63,7 @@ export class TokenStorage {
         mintAcc TEXT NOT NULL,
         decimals INTEGER NOT NULL,
         issuance NUMERIC,
+        issuanceTracked INTEGER,
         metadataAcc TEXT UNIQUE,
         name TEXT,
         symbol TEXT,
@@ -84,7 +86,7 @@ export class TokenStorage {
 
   addKnownTokensToCache() {
     for (const [mintAcc, tokenData] of KNOWN_TOKENS.entries()) {
-      this.tokenByMetadataAcc.set(mintAcc, tokenData);
+      this.tokenByMintAcc.set(mintAcc, tokenData);
     }
   }
 
@@ -124,8 +126,17 @@ export class TokenStorage {
     metadataAssigns: SolanaTokenMetadata[],
     metadataUpdates: SolanaTokenMetadataUpdate[],
     issuanceChangesByMint: Map<string, bigint>,
+    trackIssuance = true,
   ) {
-    const insertsByMint = new Map<string, SolanaToken>(inserts.map((t) => [t.mintAcc, t]));
+    const insertsByMint = new Map<string, SolanaToken>(
+      inserts.map((t) => [
+        t.mintAcc,
+        {
+          ...t,
+          issuanceTracked: trackIssuance ? 1 : 0,
+        },
+      ]),
+    );
     const enrichmentsByMint = new Map<string, SolanaTokenMetadata>(
       metadataAssigns.map((t) => [t.mintAcc, t]),
     );

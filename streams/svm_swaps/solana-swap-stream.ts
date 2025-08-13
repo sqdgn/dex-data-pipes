@@ -156,7 +156,13 @@ export class SolanaSwapsStream extends PortalAbstractStream<SolanaSwap, Args> {
       }
     }
 
-    this.storage.tokens.processBatch(tokens, tokensMetadata, tokenMetadataUpdates, issuanceChanges);
+    this.storage.tokens.processBatch(
+      tokens,
+      tokensMetadata,
+      tokenMetadataUpdates,
+      issuanceChanges,
+      !this.options.args.onlyMeta,
+    );
   }
 
   processConfigInstructions(blocks: SwapStreamBlock[]) {

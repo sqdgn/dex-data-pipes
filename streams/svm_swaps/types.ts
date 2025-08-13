@@ -121,6 +121,9 @@ export type SolanaTokenMetadataUpdate = {
 
 export type SolanaToken = SolanaTokenMintData &
   Partial<SolanaTokenMetadata> & {
+    // Whether the issuance of this token is tracked
+    // (1 = tracked, anything else = not tracked)
+    issuanceTracked?: number;
     issuance?: Decimal;
   };
 
