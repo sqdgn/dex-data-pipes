@@ -6,31 +6,41 @@ type PerfPoint = {
   value: number;
 };
 
+const WINDOW_RECALC_MS = 2000;
 class AvgProfiler {
   private average = 0;
-
   private sum = 0;
-
   private points = new DoublyLinkedList<PerfPoint>();
+  private lastRecalcTime = 0;
 
   constructor(private durationSec: number) {}
 
   putPoint(value: number) {
-    const timestamp = Date.now();
-    const prevSum = this.average * this.points.count();
-    let newSum = prevSum + value;
+    const now = Date.now();
 
+    if (now - this.lastRecalcTime < WINDOW_RECALC_MS) {
+      this.points.insertLast({ timestamp: now, value });
+      // last window recalc was less than 2 seconds ago then don't touch points list
+      this.sum += value;
+      this.average = this.sum / this.points.count();
+      return;
+    }
+
+    let newSum = this.sum + value;
+
+    const oldCount = this.points.count();
     while (
       !this.points.isEmpty() &&
-      timestamp - this.points.head().getValue().timestamp > this.durationSec * 1000
+      now - this.points.head().getValue().timestamp > this.durationSec * 1000
     ) {
       newSum -= this.points.head().getValue().value;
       this.points.removeFirst();
     }
 
-    this.points.insertLast({ timestamp, value });
+    this.points.insertLast({ timestamp: now, value });
     this.average = newSum / this.points.count();
     this.sum = newSum;
+    this.lastRecalcTime = now;
   }
 
   getAvg(): number {
@@ -98,6 +108,7 @@ export class Profiler {
   }
 
   private printStats() {
+    //return;
     const sortedStats = [...this.stats.entries()]
       .map(([name, stat]) => ({
         name,
@@ -122,9 +133,9 @@ export class Profiler {
     console.table(
       sortedStats.map((s) => ({
         Operation: s.name,
-        'Avg [total]': s.avgTime.toFixed(2),
-        'Sum [total]': (s.totalTime / 1000).toFixed(2),
-        'Cnt [total]': s.count,
+        'Avg [tot]': s.avgTime.toFixed(2),
+        'Sum [tot]': (s.totalTime / 1000).toFixed(2),
+        'Cnt [tot]': s.count,
         'Avg [1m]': s.avg1min.toFixed(2),
         'Sum [1m]': (s.sum1min / 1000).toFixed(2),
         'Cnt [1m]': s.cnt1min,

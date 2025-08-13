@@ -24,7 +24,7 @@ export class PriceExtendStream {
   private refPricesTokenUsdc = new Map<string, ReferenceTokenWithPrice[]>();
 
   // Double map: account (wallet) -> token -> TokenPositions (FIFO queue)
-  private accountPositions = new LRUMap<string, Map<string, TokenPositions>>(600_000);
+  private accountPositions = new LRUMap<string, Map<string, TokenPositions>>(2_000_000);
 
   private readonly STATS_PRINT_INTERVAL_MS = 60_000;
 
@@ -389,6 +389,10 @@ export class PriceExtendStream {
   }
 
   private firstTransformStarted = false;
+  private processSwapTotalCount = 0;
+  private processSwapTotalTime = 0;
+  private processSwapStart = 0;
+
   async pipe(): Promise<TransformStream<EvmSwap[], ExtendedEvmSwap[]>> {
     return new TransformStream({
       start: async () => {
@@ -397,7 +401,7 @@ export class PriceExtendStream {
           this.refPricesTokenUsdc.set(refToken.tokenAddress, prices);
         }
       },
-      transform: async (swaps: ExtendedEvmSwap[], controller) => {
+      transform: async (swaps: EvmSwap[], controller) => {
         if (!this.firstTransformStarted) {
           this.firstTransformStarted = true;
           this.logger.info('price_extend_stream: firstTransformStarted');
@@ -406,16 +410,32 @@ export class PriceExtendStream {
           this.preloadMissingAccountPositions(swaps),
         );
 
-        const swapsRes: ExtendedEvmSwap[] = [];
+        const swapsRes: ExtendedEvmSwap[] = new Array(swaps.length);
 
-        for (const s of swaps) {
+        if (!this.processSwapStart) {
+          this.processSwapStart = Date.now();
+          setInterval(() => {
+            if (this.processSwapTotalCount === 0) return;
+            const avg = this.processSwapTotalTime / this.processSwapTotalCount;
+            this.logger.info(
+              `processSwap count: ${this.processSwapTotalCount}, avg: ${avg.toFixed(3)} ms, total: ${Math.floor(this.processSwapTotalTime / 1000)} s.`,
+            );
+          }, 60_000);
+        }
+
+        for (let i = 0; i < swaps.length; i++) {
+          const s = swaps[i];
+          const start = Date.now();
           try {
+            this.processSwapTotalCount++;
             await this.profiler.profile('process_swap_total', async () => {
-              swapsRes.push(await this.processSwap(s));
+              swapsRes[i] = await this.processSwap(s);
             });
           } catch (err) {
-            this.logger.error(`processSwap: ${inspect(s)}`);
+            this.logger.error(`processSwap: ${inspect(s).replace('\n', ' ')}`); // print 1-liner to save space
             throw err;
+          } finally {
+            this.processSwapTotalTime += Date.now() - start;
           }
         }
         controller.enqueue(swapsRes);
