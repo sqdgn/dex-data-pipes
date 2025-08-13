@@ -1,7 +1,7 @@
 import { ClickHouseClient } from '@clickhouse/client';
 import { getPrice, QUOTE_TOKENS, sortTokenPair, timeIt, USD_STABLECOINS } from './utils';
 import { SolanaSwap, SwappedTokenData } from './types';
-import { createLogger } from '../../pipes/utils';
+import { chRetry, createLogger } from '../../pipes/utils';
 import _ from 'lodash';
 import { DbSwap, ExitSummary, TokenPositions } from './util/TokenPositions';
 import { Logger } from 'pino';
@@ -71,8 +71,10 @@ export class PriceExtendStream {
     const bestPoolTimeInterval = 14 * 24 * 60 * 60 * 1000; // 2 weeks
     // Get latest prices for each token, based on pool chosen from
     // `tokens_with_best_quote_pools` (if exist) or ANY quote pool otherwise.
-    const result = await this.client.query({
-      query: `
+    const result = await chRetry(
+      () =>
+        this.client.query({
+          query: `
           SELECT
             token,
             pool_address,
@@ -83,12 +85,17 @@ export class PriceExtendStream {
             max_timestamp={maxTimestamp:DateTime}
           )
       `,
-      query_params: {
-        minTimestamp: new Date(bestPoolMaxDate.getTime() - bestPoolTimeInterval),
-        maxTimestamp: bestPoolMaxDate,
+          query_params: {
+            minTimestamp: new Date(bestPoolMaxDate.getTime() - bestPoolTimeInterval),
+            maxTimestamp: bestPoolMaxDate,
+          },
+          format: 'JSONEachRow',
+        }),
+      {
+        desc: `Fetch token prices (best pool max date: ${bestPoolMaxDate.toISOString()})`,
+        logger: this.logger,
       },
-      format: 'JSONEachRow',
-    });
+    );
 
     for await (const rows of result.stream<TokenPriceDbRow>()) {
       for (const row of rows) {
@@ -98,9 +105,6 @@ export class PriceExtendStream {
   }
 
   private async reloadTokenPrices(bestPoolMaxDate: Date) {
-    this.logger.info(
-      `Reloading token prices (best pool max date: ${bestPoolMaxDate.toISOString()})...`,
-    );
     for await (const row of this.refetchTokenPrices(bestPoolMaxDate)) {
       this.tokenPrices.set(row.token, {
         isBestPricingPoolSelected: row.best_pool_address === row.pool_address,
@@ -125,8 +129,10 @@ export class PriceExtendStream {
         this.logger,
         'Fetching account positions chunk',
         () =>
-          this.client.query({
-            query: `SELECT
+          chRetry(
+            () =>
+              this.client.query({
+                query: `SELECT
               account,
               token_a,
               token_b,
@@ -141,9 +147,11 @@ export class PriceExtendStream {
               AND account IN {accounts:Array(String)}
               ${fromBlock ? 'AND block_number >= {fromBlock:UInt32}' : ''}
             ORDER BY (account, block_number, transaction_index, instruction_address) ASC`,
-            query_params: { accounts: accountsChunk, fromBlock },
-            format: 'JSONEachRow',
-          }),
+                query_params: { accounts: accountsChunk, fromBlock },
+                format: 'JSONEachRow',
+              }),
+            { desc: 'Fetch account positions chunk', logger: this.logger },
+          ),
         { chunkSize: accountsChunk.length },
       );
 
@@ -302,7 +310,7 @@ export class PriceExtendStream {
             'Get/load token positions',
             async () => ({
               a: await this.getOrLoadTokenPositions(swap.account, tokenA.mintAcc),
-              b: await this.getOrLoadTokenPositions(swap.account, tokenB.mintAcc),
+              // b: await this.getOrLoadTokenPositions(swap.account, tokenB.mintAcc),
             }),
             undefined,
             10000,
@@ -317,21 +325,25 @@ export class PriceExtendStream {
                 // TOKEN A - ENTRY
                 positions.a.entry(amountA, extTokenA.priceUsdc);
                 // TOKEN B - EXIT
-                const exitSummary = positions.b.exit(amountB, extTokenB.priceUsdc);
-                extTokenB.positionExitSummary = exitSummary;
+                // (not tracked)
               } else {
                 // TOKEN A - EXIT
                 const exitSummary = positions.a.exit(amountA, extTokenA.priceUsdc);
                 extTokenA.positionExitSummary = exitSummary;
+                if (exitSummary.exitedPositions > 100) {
+                  this.logger.warn(
+                    `Heavy exit: ${exitSummary.exitedPositions} positions! acc=${swap.account}, token=${extTokenA.mintAcc}`,
+                  );
+                }
                 // TOKEN B - ENTRY
-                positions.b.entry(amountB, extTokenB.priceUsdc);
+                // (not tracked)
               }
               extTokenA.balance = positions.a.totalBalance;
-              extTokenB.balance = positions.b.totalBalance;
+              // extTokenB.balance = positions.b.totalBalance;
               extTokenA.wins = positions.a.wins;
-              extTokenB.wins = positions.b.wins;
+              // extTokenB.wins = positions.b.wins;
               extTokenA.loses = positions.a.loses;
-              extTokenB.loses = positions.b.loses;
+              // extTokenB.loses = positions.b.loses;
             },
             undefined,
             10000,

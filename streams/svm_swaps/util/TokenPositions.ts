@@ -11,6 +11,7 @@ export type ExitSummary = {
   realizedAmount: number;
   entryCostUsdc: number;
   profitUsdc: number;
+  exitedPositions: number;
 };
 
 export type DbSwap = {
@@ -105,6 +106,7 @@ export class TokenPositions {
     if (amount === 0 || priceUsdc === 0) {
       // Ignore if amount or price == 0
       return {
+        exitedPositions: 0,
         entryCostUsdc: 0,
         profitUsdc: 0,
         realizedAmount: 0,
@@ -113,7 +115,9 @@ export class TokenPositions {
     let totalRealizedAmount = 0;
     let totalEntryCostUsdc = 0;
     let totalProfitUsdc = 0;
+    let exitedPositions = 0;
     while (!this.closeTo(totalRealizedAmount, amount) && this.positions.headValue) {
+      ++exitedPositions;
       const position = this.positions.headValue;
       const realizedAmount = Math.min(amount - totalRealizedAmount, position.amount);
       const entryCostUsdc = realizedAmount * position.priceUsdc;
@@ -137,6 +141,7 @@ export class TokenPositions {
       realizedAmount: totalRealizedAmount,
       entryCostUsdc: totalEntryCostUsdc,
       profitUsdc: totalProfitUsdc,
+      exitedPositions,
     };
   }
 }

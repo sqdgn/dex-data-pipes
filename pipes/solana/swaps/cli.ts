@@ -1,7 +1,7 @@
 import path from 'path';
 import { ClickhouseState } from '@sqd-pipes/core';
 import { createClickhouseClient, ensureTables, toUnixTime } from '../../clickhouse';
-import { createLogger } from '../../utils';
+import { chRetry, createLogger } from '../../utils';
 import { getConfig } from './config';
 import { SolanaSwapsStream } from '../../../streams/svm_swaps';
 import { PriceExtendStream } from '../../../streams/svm_swaps/price-extend-stream';
@@ -71,14 +71,9 @@ async function main() {
       logger,
       `Inserting swaps to Clickhouse`,
       async () => {
-        let attempt = 1;
-        const maxAttempts = 3;
-        while (true) {
-          logger.debug(
-            `Trying to insert ${swaps.length} to Clickhouse (attempt ${attempt}/${maxAttempts})`,
-          );
-          try {
-            await clickhouse.insert({
+        await chRetry(
+          () =>
+            clickhouse.insert({
               table: `solana_swaps_raw`,
               values: swaps.map((s) => {
                 const obj = {
@@ -146,28 +141,9 @@ async function main() {
                 return obj;
               }),
               format: 'JSONEachRow',
-            });
-            break;
-          } catch (err) {
-            logger.error(err, `Error while trying to insert ${swaps.length} swaps to Clickhouse!`);
-
-            if (
-              err instanceof Error &&
-              'code' in err &&
-              (err.code === 'ECONNRESET' || err.code === 'EPIPE')
-            ) {
-              ++attempt;
-              if (attempt > maxAttempts) {
-                logger.error('Max Clickhouse insert retry attempts reached.');
-              } else {
-                logger.info('Socket error detected. Retrying the insert...');
-                continue;
-              }
-            }
-
-            throw err;
-          }
-        }
+            }),
+          { logger, desc: `Insert ${swaps.length} swaps to Clickhouse` },
+        );
         await ds.ack();
       },
       {
