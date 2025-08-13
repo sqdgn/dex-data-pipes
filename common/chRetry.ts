@@ -1,5 +1,7 @@
 import { Logger } from 'pino';
 
+const RETRY_ERRORS = ['ECONNREFUSED', 'ECONNRESET', 'EPIPE'];
+
 export const chRetry = async <T>(
   logger: Logger,
   operationDescription: string = '',
@@ -17,11 +19,7 @@ export const chRetry = async <T>(
       }
       return res;
     } catch (err) {
-      if (
-        err instanceof Error &&
-        'code' in err &&
-        (err.code === 'ECONNRESET' || err.code === 'EPIPE')
-      ) {
+      if (err instanceof Error && 'code' in err && RETRY_ERRORS.includes(err.code as string)) {
         retries++;
         logger.warn(`chRetry: ${opText}socket error. Retrying ${retries}`);
 
