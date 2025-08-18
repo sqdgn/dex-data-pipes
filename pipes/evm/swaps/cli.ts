@@ -4,6 +4,9 @@ import { PriceExtendStream } from '../../../streams/evm_swaps/price_extend_strea
 import { createClickhouseClient, ensureTables, toUnixTime } from '../../clickhouse';
 import { createLogger } from '../../utils';
 import { getConfig } from '../config';
+import { inspect } from 'node:util';
+import { chRetry } from '../../../common/chRetry';
+import { SystemMonitoring } from '../../../common/system_monitoring';
 
 const config = getConfig();
 
@@ -12,8 +15,17 @@ const logger = createLogger('evm dex swaps').child({ network: config.network });
 logger.info(`Local database: ${config.dbPath}`);
 
 async function main() {
-  const clickhouse = await createClickhouseClient();
-  await ensureTables(clickhouse, __dirname);
+  const sysMon = new SystemMonitoring();
+
+  const clickhouse = await createClickhouseClient({
+    capture_enhanced_stack_trace: true,
+    clickhouse_settings: {
+      http_receive_timeout: 900,
+      receive_timeout: 900,
+    },
+    request_timeout: 900_000,
+  });
+  await ensureTables(clickhouse, __dirname, config.network, process.env.CLICKHOUSE_DB!);
 
   const ds = new EvmSwapStream({
     portal: process.env.PORTAL_URL ?? config.portal.url,
@@ -40,10 +52,16 @@ async function main() {
         if (!latest.timestamp) {
           return; // fresh table
         }
-        await state.removeAllRows({
-          table: `swaps_raw`,
-          where: `timestamp > ${latest.timestamp}`,
-        });
+
+        try {
+          await state.removeAllRows({
+            table: `swaps_raw`,
+            where: `timestamp > ${latest.timestamp}`,
+          });
+        } catch (err) {
+          logger.error('onRollback err:', inspect(err));
+          throw err;
+        }
       },
     }),
   });
@@ -51,51 +69,74 @@ async function main() {
 
   const stream = await ds.stream();
   for await (const swaps of stream.pipeThrough(
-    await new PriceExtendStream(clickhouse, config.network).pipe(),
+    await new PriceExtendStream(clickhouse, config.network, logger).pipe(),
   )) {
-    await clickhouse.insert({
-      table: `swaps_raw`,
-      values: swaps.map((s) => {
-        const obj = {
-          factory_address: s.factory.address,
-          network: config.network,
-          dex_name: s.dexName,
-          protocol: s.protocol,
-          block_number: s.block.number,
-          transaction_hash: s.transaction.hash,
-          transaction_index: s.transaction.index,
-          log_index: s.transaction.logIndex,
-          account: s.account,
-          sender: s.sender,
-          recipient: s.recipient,
-          token_a: s.tokenA.address,
-          token_a_decimals: s.tokenA.decimals,
-          token_a_symbol: s.tokenA.symbol,
-          token_b: s.tokenB.address,
-          token_b_decimals: s.tokenB.decimals,
-          token_b_symbol: s.tokenB.symbol,
-          price_token_a_usdc: s.price_token_a_usdc,
-          price_token_b_usdc: s.price_token_b_usdc,
-          amount_a_raw: s.tokenA.amount_raw.toString(),
-          amount_b_raw: s.tokenB.amount_raw.toString(),
-          amount_a: s.tokenA.amount_human.toString(),
-          amount_b: s.tokenB.amount_human.toString(),
-          pool_address: s.pool.address,
-          pool_tick_spacing: s.pool.tick_spacing,
-          pool_fee_creation: s.pool.fee,
-          pool_stable: s.pool.stable,
-          pool_liquidity: s.pool.liquidity !== undefined ? s.pool.liquidity.toString() : undefined,
-          pool_sqrt_price_x96:
-            s.pool.sqrtPriceX96 !== undefined ? s.pool.sqrtPriceX96.toString() : undefined,
-          pool_tick: s.pool.tick,
-          timestamp: toUnixTime(s.timestamp),
-          a_b_swapped: s.a_b_swapped,
-          sign: 1,
-        };
-        return obj;
-      }),
-      format: 'JSONEachRow',
-    });
+    try {
+      await chRetry(
+        logger,
+        'swaps_raw insert',
+        async () =>
+          await clickhouse.insert({
+            table: `swaps_raw`,
+            values: swaps.map((s) => {
+              const obj = {
+                factory_address: s.factory.address,
+                network: config.network,
+                dex_name: s.dexName,
+                protocol: s.protocol,
+                block_number: s.block.number,
+                transaction_hash: s.transaction.hash,
+                transaction_index: s.transaction.index,
+                log_index: s.transaction.logIndex,
+                account: s.account,
+                sender: s.sender,
+                recipient: s.recipient,
+                token_a: s.tokenA.address,
+                token_a_decimals: s.tokenA.decimals,
+                token_a_symbol: s.tokenA.symbol,
+                token_b: s.tokenB.address,
+                token_b_decimals: s.tokenB.decimals,
+                token_b_symbol: s.tokenB.symbol,
+                price_token_a_usdc: s.price_token_a_usdc,
+                price_token_b_usdc: s.price_token_b_usdc,
+                amount_a_raw: s.tokenA.amount_raw.toString(),
+                amount_b_raw: s.tokenB.amount_raw.toString(),
+                amount_a: s.tokenA.amount_human.toString(),
+                amount_b: s.tokenB.amount_human.toString(),
+                pool_address: s.pool.address,
+                pool_tick_spacing: s.pool.tick_spacing,
+                pool_fee_creation: s.pool.fee,
+                pool_stable: s.pool.stable,
+                pool_liquidity:
+                  s.pool.liquidity !== undefined ? s.pool.liquidity.toString() : undefined,
+                pool_sqrt_price_x96:
+                  s.pool.sqrtPriceX96 !== undefined ? s.pool.sqrtPriceX96.toString() : undefined,
+                pool_tick: s.pool.tick,
+                timestamp: toUnixTime(s.timestamp),
+                a_b_swapped: s.a_b_swapped,
+                // trader stats
+                token_a_balance: s.token_a_balance,
+                token_b_balance: s.token_b_balance,
+                token_a_profit_usdc: s.token_a_profit_usdc,
+                token_b_profit_usdc: s.token_b_profit_usdc,
+                token_a_cost_usdc: s.token_a_cost_usdc,
+                token_b_cost_usdc: s.token_b_cost_usdc,
+                token_a_wins: s.token_a_wins,
+                token_b_wins: s.token_b_wins,
+                token_a_loses: s.token_a_loses,
+                token_b_loses: s.token_b_loses,
+                // end trader stats
+                sign: 1,
+              };
+              return obj;
+            }),
+            format: 'JSONEachRow',
+          }),
+      );
+    } catch (err) {
+      logger.error('insert err:', inspect(err));
+      throw err;
+    }
     await ds.ack();
   }
 }

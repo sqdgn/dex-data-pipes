@@ -24,7 +24,8 @@ import {
 import { PoolMetadataSimple } from './pool_metadata_storage';
 import { handleUniswapV4Pool, handleUniswapV4Swap } from './protocols/uniswap.v4/handle_events';
 
-export type Network = 'base' | 'ethereum';
+export const NetworkValues = ['base', 'ethereum', 'zora'] as const;
+export type Network = (typeof NetworkValues)[number];
 
 export const AllDexProtocols = [
   'uniswap_v2',
@@ -146,9 +147,16 @@ export const NetworksMappings: Record<
       ),
     },
   },
+  zora: {
+    uniswap: {
+      uniswap_v3: uniswapV3Protocol('0x7145F8aeef1f6510E92164038E1B6F8cB2c42Cbb'),
+      uniswap_v4: uniswapV4Protocol('0x0575338e4c17006ae181b47900a84404247ca30f'),
+    },
+  },
 };
 
 export const MulticallAddresses: Record<Network, string> = {
   ethereum: '0x5BA1e12693Dc8F9c48aAD8770482f4739bEeD696',
   base: '0xcA11bde05977b3631167028862bE2a173976CA11',
+  zora: '0xcA11bde05977b3631167028862bE2a173976CA11',
 };

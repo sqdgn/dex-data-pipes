@@ -268,7 +268,9 @@ export class TokenMetadataStorage {
         e.tokenB.decimals === null,
     );
     if (nanEvents.length) {
-      console.log('nanEvents:', nanEvents.length);
+      this.logger.warn(
+        `enrichWithTokenData error: could not load decimals for ${nanEvents.length}. Most likely the app will crash later`,
+      );
     }
   }
 
