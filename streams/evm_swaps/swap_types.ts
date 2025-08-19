@@ -46,6 +46,16 @@ export type ExtendedEvmSwap = EvmSwap & {
   price_token_a_usdc: number;
   price_token_b_usdc: number;
   a_b_swapped: boolean;
+  token_a_balance: number;
+  token_b_balance: number;
+  token_a_profit_usdc: number;
+  token_b_profit_usdc: number;
+  token_a_cost_usdc: number;
+  token_b_cost_usdc: number;
+  token_a_wins: number;
+  token_b_wins: number;
+  token_a_loses: number;
+  token_b_loses: number;
 };
 
 export type DecodedEvmSwap = {

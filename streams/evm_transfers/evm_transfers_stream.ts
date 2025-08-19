@@ -118,6 +118,8 @@ export class EvmTransfersStream extends PortalAbstractStream<Erc20Transfer, Args
     return source.pipeThrough(
       new TransformStream({
         transform: async ({ blocks }, controller) => {
+          this.logger.debug(`evm_transfers_stream: transform. blocks=${blocks.length}`);
+
           // FIXME any
           const allEvents: any[] = [];
           for (const b of blocks) {
@@ -162,6 +164,7 @@ export class EvmTransfersStream extends PortalAbstractStream<Erc20Transfer, Args
               allEvents.push(event);
             }
           }
+          this.logger.debug(`evm_transfers_stream: transform. allEvents=${allEvents.length}`);
           controller.enqueue(allEvents);
         },
       }),
