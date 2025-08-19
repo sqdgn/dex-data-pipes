@@ -119,25 +119,31 @@ export class SolanaSwapsStream extends PortalAbstractStream<SolanaSwap, Args> {
         continue;
       }
       for (const ins of block.instructions) {
-        // Initialize token mint
-        if (isInitializeMintInstruction(ins)) {
-          const token = handleInitializeMint(block, ins);
-          tokens.push(token);
-          continue;
-        }
+        try {
+          // Initialize token mint
+          if (isInitializeMintInstruction(ins)) {
+            const token = handleInitializeMint(block, ins);
+            tokens.push(token);
+            continue;
+          }
 
-        // Create token metadata
-        if (isCreateMetadataInstruction(ins)) {
-          const tokenMetadata = handleCreateMetadata(ins);
-          tokensMetadata.push(tokenMetadata);
-          continue;
-        }
+          // Create token metadata
+          if (isCreateMetadataInstruction(ins)) {
+            const tokenMetadata = handleCreateMetadata(ins);
+            tokensMetadata.push(tokenMetadata);
+            continue;
+          }
 
-        // Update token metadata
-        if (isUpdateMetadataInstruction(ins)) {
-          const tokenMetadataUpdate = handleUpdateMetadata(ins);
-          tokenMetadataUpdates.push(tokenMetadataUpdate);
-          continue;
+          // Update token metadata
+          if (isUpdateMetadataInstruction(ins)) {
+            const tokenMetadataUpdate = handleUpdateMetadata(ins);
+            tokenMetadataUpdates.push(tokenMetadataUpdate);
+            continue;
+          }
+        } catch (e) {
+          const txHash = getTransactionHash(ins, block);
+          this.logger.error(`Failed to process token instruciton! Tx hash: ${txHash}`);
+          throw e;
         }
         // Mint new tokens
         if (isMintInstruction(ins)) {
@@ -185,108 +191,127 @@ export class SolanaSwapsStream extends PortalAbstractStream<SolanaSwap, Args> {
     }
   }
 
+  handleSwapInstruction(
+    block: SwapStreamBlock,
+    ins: SwapStreamInstruction,
+  ): SolanaSwap | undefined {
+    let swap: SolanaSwapCore | null = null;
+    const tx = getTransaction(ins, block);
+    const accountKeys = tx.accountKeys || [];
+
+    // FIXME: Defi Tuna instructions have multiple swaps and for some reason
+    // we're not being able to decode innner instructions properly.
+    if (accountKeys.includes('tuna4uSQZncNeeiAMKbstuxA9CUkHH6HmC64wgmnogD')) {
+      return;
+    }
+
+    switch (ins.programId) {
+      case whirlpool.programId:
+        if (whirlpool.instructions.swap.d8 === getInstructionDescriptor(ins)) {
+          swap = handleWhirlpool(ins, block);
+          break;
+        }
+        break;
+      case meteoraDamm.programId:
+        switch (getInstructionDescriptor(ins)) {
+          case meteoraDamm.instructions.swap.d8:
+            swap = handleMeteoraDamm(this.logger, ins, block);
+            break;
+        }
+        break;
+      case meteoraDlmm.programId:
+        switch (getInstructionDescriptor(ins)) {
+          case meteoraDlmm.instructions.swap.d8:
+          case meteoraDlmm.instructions.swapExactOut.d8:
+            swap = handleMeteoraDlmm(ins, block);
+            break;
+        }
+        break;
+      case raydiumAmm.programId:
+        switch (getInstructionDescriptor(ins)) {
+          case raydiumAmm.instructions.swapBaseInput.d8:
+          case raydiumAmm.instructions.swapBaseOutput.d8:
+            swap = handleRaydiumAmm(ins, block);
+            break;
+        }
+        break;
+      case raydiumClmm.programId:
+        switch (getInstructionDescriptor(ins)) {
+          case raydiumClmm.instructions.swap.d8:
+          case raydiumClmm.instructions.swapV2.d8:
+            // TODO: should uncomment this line once swapRouterBaseIn instruction handler is implemented
+            // case raydiumClmm.instructions.swapRouterBaseIn.d8:
+            swap = handleRaydiumClmm(ins, block);
+            break;
+        }
+        break;
+      case raydiumLaunchlab.programId:
+        if (raydiumLaunchLabHandler.isSwapInstruction(ins)) {
+          swap = raydiumLaunchLabHandler.handleSwap(ins, block, this.storage.launchLabConfig);
+        }
+        break;
+    }
+
+    if (!swap) {
+      return;
+    }
+
+    if (this.options.args?.tokens && !this.isPairAllowed(swap.input.mintAcc, swap.output.mintAcc)) {
+      return;
+    }
+
+    const txHash = getTransactionHash(ins, block);
+
+    const inputToken = {
+      ...swap.input,
+      ...(this.storage.tokens.getToken(swap.input.mintAcc) || {}),
+    };
+    const outputToken = {
+      ...swap.output,
+      ...(this.storage.tokens.getToken(swap.output.mintAcc) || {}),
+    };
+
+    return {
+      id: `${txHash}/${ins.transactionIndex}`,
+      type: swap.type,
+      block: {
+        number: block.header.number,
+        hash: block.header.hash,
+        timestamp: block.header.timestamp,
+      },
+      instruction: {
+        address: ins.instructionAddress,
+      },
+      input: inputToken,
+      output: outputToken,
+      account: getTransactionAccount(ins, block),
+      transaction: {
+        hash: txHash,
+        index: ins.transactionIndex,
+      },
+      timestamp: new Date(block.header.timestamp * 1000),
+      poolAddress: swap.poolAddress,
+      slippagePct: swap.slippagePct,
+    };
+  }
+
   processSwapInstructions(blocks: SwapStreamBlock[]) {
-    const { args } = this.options;
     const swaps: SolanaSwap[] = [];
     for (const block of blocks) {
       if (!block.instructions) {
         continue;
       }
       for (const ins of block.instructions) {
-        let swap: SolanaSwapCore | null = null;
-        const tx = getTransaction(ins, block);
-        const accountKeys = tx.accountKeys || [];
-
-        // FIXME: Defi Tuna instructions have multiple swaps and for some reason
-        // we're not being able to decode innner instructions properly.
-        if (accountKeys.includes('tuna4uSQZncNeeiAMKbstuxA9CUkHH6HmC64wgmnogD')) continue;
-
-        switch (ins.programId) {
-          case whirlpool.programId:
-            if (whirlpool.instructions.swap.d8 === getInstructionDescriptor(ins)) {
-              swap = handleWhirlpool(ins, block);
-              break;
-            }
-            break;
-          case meteoraDamm.programId:
-            switch (getInstructionDescriptor(ins)) {
-              case meteoraDamm.instructions.swap.d8:
-                swap = handleMeteoraDamm(this.logger, ins, block);
-                break;
-            }
-            break;
-          case meteoraDlmm.programId:
-            switch (getInstructionDescriptor(ins)) {
-              case meteoraDlmm.instructions.swap.d8:
-              case meteoraDlmm.instructions.swapExactOut.d8:
-                swap = handleMeteoraDlmm(ins, block);
-                break;
-            }
-            break;
-          case raydiumAmm.programId:
-            switch (getInstructionDescriptor(ins)) {
-              case raydiumAmm.instructions.swapBaseInput.d8:
-              case raydiumAmm.instructions.swapBaseOutput.d8:
-                swap = handleRaydiumAmm(ins, block);
-                break;
-            }
-            break;
-          case raydiumClmm.programId:
-            switch (getInstructionDescriptor(ins)) {
-              case raydiumClmm.instructions.swap.d8:
-              case raydiumClmm.instructions.swapV2.d8:
-                // TODO: should uncomment this line once swapRouterBaseIn instruction handler is implemented
-                // case raydiumClmm.instructions.swapRouterBaseIn.d8:
-                swap = handleRaydiumClmm(ins, block);
-                break;
-            }
-            break;
-          case raydiumLaunchlab.programId:
-            if (raydiumLaunchLabHandler.isSwapInstruction(ins)) {
-              swap = raydiumLaunchLabHandler.handleSwap(ins, block, this.storage.launchLabConfig);
-            }
-            break;
+        try {
+          const swap = this.handleSwapInstruction(block, ins);
+          if (swap) {
+            swaps.push(swap);
+          }
+        } catch (e) {
+          const txHash = getTransactionHash(ins, block);
+          this.logger.error(`Failed to process swap instruction! Tx hash: ${txHash}`);
+          throw e;
         }
-
-        if (!swap) continue;
-
-        if (args?.tokens && !this.isPairAllowed(swap.input.mintAcc, swap.output.mintAcc)) {
-          continue;
-        }
-
-        const txHash = getTransactionHash(ins, block);
-
-        const inputToken = {
-          ...swap.input,
-          ...(this.storage.tokens.getToken(swap.input.mintAcc) || {}),
-        };
-        const outputToken = {
-          ...swap.output,
-          ...(this.storage.tokens.getToken(swap.output.mintAcc) || {}),
-        };
-
-        swaps.push({
-          id: `${txHash}/${ins.transactionIndex}`,
-          type: swap.type,
-          block: {
-            number: block.header.number,
-            hash: block.header.hash,
-            timestamp: block.header.timestamp,
-          },
-          instruction: {
-            address: ins.instructionAddress,
-          },
-          input: inputToken,
-          output: outputToken,
-          account: getTransactionAccount(ins, block),
-          transaction: {
-            hash: txHash,
-            index: ins.transactionIndex,
-          },
-          timestamp: new Date(block.header.timestamp * 1000),
-          poolAddress: swap.poolAddress,
-          slippagePct: swap.slippagePct,
-        });
       }
     }
 
