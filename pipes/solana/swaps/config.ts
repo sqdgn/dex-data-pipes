@@ -5,6 +5,7 @@ export function getConfig() {
   const commonConfig = getCommonConfig();
   const dbPath = process.env.DB_PATH;
   const cacheDumpPath = process.env.CACHE_DUMP_PATH;
+  const cacheDumpIntervalBlocks = parseInt(process.env.CACHE_DUMP_INTERVAL_BLOCKS || '0');
   const onlyMeta = ['t', 'T', 'true', '1'].includes(process.env.ONLY_META || '');
 
   assert(dbPath, 'DB_PATH param must be specified');
@@ -14,6 +15,7 @@ export function getConfig() {
     ...commonConfig,
     dbPath,
     cacheDumpPath,
+    cacheDumpIntervalBlocks,
     onlyMeta,
   };
 }

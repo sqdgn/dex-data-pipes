@@ -65,7 +65,11 @@ async function main() {
 
   const stream = await ds.stream();
   for await (const swaps of stream.pipeThrough(
-    await new PriceExtendStream(clickhouse, config.cacheDumpPath).pipe(),
+    await new PriceExtendStream({
+      clickhouse,
+      cacheDumpPath: config.cacheDumpPath,
+      cacheDumpIntervalBlocks: config.cacheDumpIntervalBlocks,
+    }).pipe(),
   )) {
     await timeIt(
       logger,

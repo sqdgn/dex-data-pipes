@@ -12,7 +12,7 @@ import _ from 'lodash';
 const ACCOUNT_POSITIONS_MAP_CAPACITY = 100_000;
 // cache dump interval
 const SOLANA_BLOCKTIME_SEC = 0.4;
-const DEFAULT_CACHE_DUMP_INTERVAL_BLOCKS = (30 * 60) / SOLANA_BLOCKTIME_SEC; // dump every ~30m of indexed data
+const DEFAULT_CACHE_DUMP_INTERVAL_BLOCKS = 3600 / SOLANA_BLOCKTIME_SEC; // dump every ~1h of indexed data
 
 function indent(size: number) {
   return _.repeat('  ', size);
@@ -26,8 +26,13 @@ export class AccountsPositionsCache {
     ACCOUNT_POSITIONS_MAP_CAPACITY,
   );
   private logger = createLogger('accounts positions cache');
+  private dumpPath: string;
+  private dumpIntervalBlocks: number;
 
-  constructor(private dumpIntervalBlocks = DEFAULT_CACHE_DUMP_INTERVAL_BLOCKS) {}
+  constructor(dumpPath: string, dumpIntervalBlocks?: number) {
+    this.dumpPath = dumpPath;
+    this.dumpIntervalBlocks = dumpIntervalBlocks || DEFAULT_CACHE_DUMP_INTERVAL_BLOCKS;
+  }
 
   public has(account: string) {
     return this.accountPositions.has(account);
@@ -75,16 +80,18 @@ export class AccountsPositionsCache {
     return currentBlock >= this._lastDumpBlock + this.dumpIntervalBlocks;
   }
 
-  public dumpIfNeeded(path: string, blockNumber: number) {
+  public dumpIfNeeded(blockNumber: number) {
     if (this.shouldDump(blockNumber)) {
-      this.dumpToFile(path, blockNumber);
+      this.dumpToFile(blockNumber);
     }
   }
 
-  public dumpToFile(path: string, blockNumber: number) {
-    this.logger.debug(`Dumping accounts positions cache at block ${blockNumber} to ${path}...`);
+  public dumpToFile(blockNumber: number) {
+    this.logger.debug(
+      `Dumping accounts positions cache at block ${blockNumber} to ${this.dumpPath}...`,
+    );
     timeIt(this.logger, 'Dumping accounts positions cache to file', () => {
-      const fp = fs.openSync(path, 'w');
+      const fp = fs.openSync(this.dumpPath, 'w');
       fs.writeFileSync(fp, `${this.__version}:${blockNumber}\n`);
       for (const [account, tokenPositions] of this.accountPositions.entries()) {
         fs.writeFileSync(fp, `${indent(1)}${account}\n`);
@@ -100,18 +107,18 @@ export class AccountsPositionsCache {
     });
   }
 
-  public async loadFromFile(path: string, maxAllowedBlock: number) {
-    this.logger.info(`Loading accounts positions cache from ${path}...`);
+  public async loadFromFile(maxAllowedBlock: number) {
+    this.logger.info(`Loading accounts positions cache from ${this.dumpPath}...`);
     if (this.loaded) {
       throw new Error('AccountPositionsCache already loaded!');
     }
-    if (!fs.existsSync(path)) {
-      this.logger.warn(`${path} is empty, cache will be recreated from scratch`);
+    if (!fs.existsSync(this.dumpPath)) {
+      this.logger.warn(`${this.dumpPath} is empty, cache will be recreated from scratch`);
       this._loaded = true;
       return;
     }
     await timeIt(this.logger, 'Loading accounts positions cache from file', async () => {
-      const stream = fs.createReadStream(path);
+      const stream = fs.createReadStream(this.dumpPath);
       const rl = readline.createInterface(stream);
       let currentAccountPositions: Map<string, TokenPositions> | undefined;
       let currentTokenPotisions: TokenPositions | undefined;
@@ -161,7 +168,7 @@ export class AccountsPositionsCache {
       stream.destroy();
       this._lastDumpBlock = block;
       this._loaded = true;
-      this.logger.info(`Loaded cache dump created at block ${block} from ${path}`);
+      this.logger.info(`Loaded cache dump created at block ${block} from ${this.dumpPath}`);
     });
   }
 }

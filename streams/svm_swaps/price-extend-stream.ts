@@ -49,10 +49,17 @@ function toStartOfPrevHour(date: Date) {
 // Max. Number of accounts to preload positions for in a single query
 const PRELOAD_ACCOUNT_POSITIONS_BATCH_SIZE = 50;
 
+export type PriceExtendStreamArgs = {
+  clickhouse: ClickHouseClient;
+  cacheDumpPath: string;
+  cacheDumpIntervalBlocks: number;
+};
+
 export class PriceExtendStream {
   private logger: Logger;
+  private client: ClickHouseClient;
   // Double map: userAcc -> tokenMintAcc -> TokenPositions (FIFO queue)
-  private accountPositions = new AccountsPositionsCache();
+  private accountPositions: AccountsPositionsCache;
   // Cache hit ratio for account positions LRUMap cache
   private cacheHitRatio = { cacheHit: 0, dbHit: 0, miss: 0 };
   // tokenMintAcc => TokenPriceData map
@@ -60,11 +67,13 @@ export class PriceExtendStream {
   // Ending date currently used to select best pricing pools for each token
   private bestPoolMaxDate: Date | undefined;
 
-  constructor(
-    private client: ClickHouseClient,
-    private cacheDumpPath: string,
-  ) {
+  constructor(options: PriceExtendStreamArgs) {
     this.logger = createLogger('price-extend-stream');
+    this.client = options.clickhouse;
+    this.accountPositions = new AccountsPositionsCache(
+      options.cacheDumpPath,
+      options.cacheDumpIntervalBlocks,
+    );
   }
 
   private async *refetchTokenPrices(bestPoolMaxDate: Date) {
@@ -395,7 +404,7 @@ export class PriceExtendStream {
     // Init accountPositions cache first if not initialized yet
     if (!this.accountPositions.loaded) {
       const [firstSwap] = swaps;
-      await this.accountPositions.loadFromFile(this.cacheDumpPath, firstSwap.block.number - 1);
+      await this.accountPositions.loadFromFile(firstSwap.block.number - 1);
       if (this.accountPositions.lastDumpBlock) {
         await this.preloadAccountPositions(
           [...this.accountPositions.keys()],
@@ -466,7 +475,7 @@ export class PriceExtendStream {
           });
           this.logAndResetCacheStats();
           const [lastSwap] = swaps.slice(-1);
-          this.accountPositions.dumpIfNeeded(this.cacheDumpPath, lastSwap.block.number);
+          this.accountPositions.dumpIfNeeded(lastSwap.block.number);
           controller.enqueue(extendedSwaps);
         });
       },
