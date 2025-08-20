@@ -9,68 +9,79 @@ import {
 } from '../utils';
 import * as raydiumClmm from '../contracts/raydium-clmm';
 import type { SwapEvent } from '../contracts/raydium-clmm/types';
-import { Block, Instruction, SolanaSwapCore } from '../types';
+import { Block, Instruction } from '../types';
+import { SwapStreamInstructionHandler } from '../solana-swap-stream.types';
 
-export function handleRaydiumClmm(ins: Instruction, block: Block): SolanaSwapCore {
-  const {
-    accounts: { poolState: poolAddress, inputVault, outputVault },
-  } = decodeSwap(ins);
-  const swapEvent = getSwapEvent(ins, block);
-  const decodedTransfers = getDecodedInnerTransfers(ins, block);
-  if (decodedTransfers.length < 2) {
-    throw new Error('Expected 2 decoded transfers accounting for tokenIn and tokenOut');
-  }
+export const raydiumClmmSwapInstructions = [
+  raydiumClmm.instructions.swap,
+  raydiumClmm.instructions.swapV2,
+];
 
-  const [
-    {
-      // Transfer instructions take in authority account while TransferChecked instructions take in owner account
-      accounts: { destination: tokenInAccount, authority, owner },
-      data: { amount: inputTokenAmount },
-    },
-    {
-      accounts: { source: tokenOutAccount },
-      data: { amount: outputTokenAmount },
-    },
-  ] = decodedTransfers;
+export const clmmSwapHandler: SwapStreamInstructionHandler = {
+  check: ({ ins }) =>
+    ins.programId === raydiumClmm.programId &&
+    raydiumClmmSwapInstructions.map(({ d8 }) => d8).includes(getInstructionDescriptor(ins)),
+  run: ({ ins, block }) => {
+    const {
+      accounts: { poolState: poolAddress, inputVault, outputVault },
+    } = decodeSwap(ins);
+    const swapEvent = getSwapEvent(ins, block);
+    const decodedTransfers = getDecodedInnerTransfers(ins, block);
+    if (decodedTransfers.length < 2) {
+      throw new Error('Expected 2 decoded transfers accounting for tokenIn and tokenOut');
+    }
 
-  const account = authority || owner;
-  if (!account) {
-    throw new Error('Account not found in transfer instruction');
-  }
+    const [
+      {
+        // Transfer instructions take in authority account while TransferChecked instructions take in owner account
+        accounts: { destination: tokenInAccount, authority, owner },
+        data: { amount: inputTokenAmount },
+      },
+      {
+        accounts: { source: tokenOutAccount },
+        data: { amount: outputTokenAmount },
+      },
+    ] = decodedTransfers;
 
-  const tokenBalances = getInstructionBalances(ins, block);
-  const tokenIn = getPostTokenBalance(tokenBalances, tokenInAccount);
-  const tokenOut = getPostTokenBalance(tokenBalances, tokenOutAccount);
+    const account = authority || owner;
+    if (!account) {
+      throw new Error('Account not found in transfer instruction');
+    }
 
-  const swapPrice = swapEvent ? getPoolPrice(swapEvent, tokenIn, tokenOut) : null;
+    const tokenBalances = getInstructionBalances(ins, block);
+    const tokenIn = getPostTokenBalance(tokenBalances, tokenInAccount);
+    const tokenOut = getPostTokenBalance(tokenBalances, tokenOutAccount);
 
-  const slippagePct =
-    tokenIn && tokenOut && swapPrice && swapEvent
-      ? getSlippage(tokenIn, tokenOut, inputTokenAmount, outputTokenAmount, swapEvent, swapPrice)
-      : null;
+    const swapPrice = swapEvent ? getPoolPrice(swapEvent, tokenIn, tokenOut) : null;
 
-  // Get vault tokens to determine token mints
-  const inputVaultToken = getPreTokenBalance(tokenBalances, inputVault);
-  const outputVaultToken = getPreTokenBalance(tokenBalances, outputVault);
-  return {
-    type: 'raydium_clmm',
-    poolAddress,
-    account,
-    input: {
-      amount: inputTokenAmount,
-      mintAcc: tokenIn.postMint,
-      decimals: tokenIn.postDecimals,
-      reserves: inputVaultToken.preAmount,
-    },
-    output: {
-      amount: outputTokenAmount,
-      mintAcc: tokenOut.postMint,
-      decimals: tokenOut.postDecimals,
-      reserves: outputVaultToken.preAmount,
-    },
-    slippagePct,
-  };
-}
+    const slippagePct =
+      tokenIn && tokenOut && swapPrice && swapEvent
+        ? getSlippage(tokenIn, tokenOut, inputTokenAmount, outputTokenAmount, swapEvent, swapPrice)
+        : null;
+
+    // Get vault tokens to determine token mints
+    const inputVaultToken = getPreTokenBalance(tokenBalances, inputVault);
+    const outputVaultToken = getPreTokenBalance(tokenBalances, outputVault);
+    return {
+      type: 'raydium_clmm',
+      poolAddress,
+      account,
+      input: {
+        amount: inputTokenAmount,
+        mintAcc: tokenIn.postMint,
+        decimals: tokenIn.postDecimals,
+        reserves: inputVaultToken.preAmount,
+      },
+      output: {
+        amount: outputTokenAmount,
+        mintAcc: tokenOut.postMint,
+        decimals: tokenOut.postDecimals,
+        reserves: outputVaultToken.preAmount,
+      },
+      slippagePct,
+    };
+  },
+};
 
 // FIXME: The code below is duplicated in orca-swap-handler.ts
 // Consider refactoring to avoid duplication

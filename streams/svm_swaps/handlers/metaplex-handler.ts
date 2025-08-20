@@ -1,4 +1,5 @@
 import * as metaplex from '../contracts/metaplex';
+import { SwapStreamInstructionHandler } from '../solana-swap-stream.types';
 import { Instruction, SolanaTokenMetadata, SolanaTokenMetadataUpdate } from '../types';
 import { getInstructionD1 } from '../utils';
 
@@ -13,18 +14,44 @@ export const updateMetadataInstructions = [
   metaplex.instructions.updateMetadataAccountV2,
 ];
 
-export const isCreateMetadataInstruction = (ins: Instruction): boolean => {
-  const desc = getInstructionD1(ins);
-  return (
-    ins.programId === metaplex.programId && createMetadataInstructions.some((i) => i.d1 === desc)
-  );
+export const createMetadataHandler: SwapStreamInstructionHandler = {
+  check: ({ ins }) => {
+    const desc = getInstructionD1(ins);
+    return (
+      ins.programId === metaplex.programId && createMetadataInstructions.some((i) => i.d1 === desc)
+    );
+  },
+  run: ({ ins, context }) => {
+    const md = decodeCreateMetadataIns(ins);
+    const metadata: SolanaTokenMetadata = {
+      metadataAcc: md.accounts.metadata,
+      mintAcc: md.accounts.mint,
+      name: md.args.data.name,
+      symbol: md.args.data.symbol,
+      // uri: md.args.data.uri,
+      mutable: md.args.isMutable ? 1 : 0,
+    };
+    context.storage.tokens.handleSetMetadata(metadata);
+  },
 };
 
-export const isUpdateMetadataInstruction = (ins: Instruction): boolean => {
-  const desc = getInstructionD1(ins);
-  return (
-    ins.programId === metaplex.programId && updateMetadataInstructions.some((i) => i.d1 === desc)
-  );
+export const updateMetadataHandler: SwapStreamInstructionHandler = {
+  check: ({ ins }) => {
+    const desc = getInstructionD1(ins);
+    return (
+      ins.programId === metaplex.programId && updateMetadataInstructions.some((i) => i.d1 === desc)
+    );
+  },
+  run: ({ ins, context }) => {
+    const md = decodeUpdateMetadataIns(ins);
+    const metadataUpdate: SolanaTokenMetadataUpdate = {
+      metadataAcc: md.accounts.metadata,
+      name: md.args.data?.name,
+      symbol: md.args.data?.symbol,
+      // uri: md.args.data?.uri,
+    };
+    context.storage.tokens.handleUpdateMetadata(metadataUpdate);
+  },
 };
 
 function decodeCreateMetadataIns(ins: Instruction) {
@@ -74,26 +101,4 @@ function decodeUpdateMetadataIns(ins: Instruction) {
     default:
       throw new Error('Cannot decode instruction as updateMetadataAccount');
   }
-}
-
-export function handleCreateMetadata(ins: Instruction): SolanaTokenMetadata {
-  const md = decodeCreateMetadataIns(ins);
-  return {
-    metadataAcc: md.accounts.metadata,
-    mintAcc: md.accounts.mint,
-    name: md.args.data.name,
-    symbol: md.args.data.symbol,
-    // uri: md.args.data.uri,
-    mutable: md.args.isMutable ? 1 : 0,
-  };
-}
-
-export function handleUpdateMetadata(ins: Instruction): SolanaTokenMetadataUpdate {
-  const md = decodeUpdateMetadataIns(ins);
-  return {
-    metadataAcc: md.accounts.metadata,
-    name: md.args.data?.name,
-    symbol: md.args.data?.symbol,
-    // uri: md.args.data?.uri,
-  };
 }

@@ -5,7 +5,6 @@ import {
   SolanaTokenMetadata,
   SolanaTokenMetadataUpdate,
   SolanaTokenMintData,
-  TokenIssuanceChange,
 } from '../svm_swaps/types';
 import { TOKENS } from '../svm_swaps/utils';
 import Decimal from 'decimal.js';
@@ -18,6 +17,9 @@ const KNOWN_TOKENS = new Map([
 ]);
 
 export class TokenStorage {
+  // Set of mint accounts
+  private pendingUpdateTokens = new Set<string>();
+
   private static columns: (keyof SolanaToken)[] = [
     'mintAcc',
     'decimals',
@@ -32,26 +34,16 @@ export class TokenStorage {
     'creationTxHash',
   ];
   private readonly queries = {
-    insert: `INSERT OR IGNORE INTO "spl_tokens" (
+    upsert: `INSERT INTO "spl_tokens" (
             ${TokenStorage.columns.join(', ')}
         ) VALUES (
             ${TokenStorage.columns.map((k) => `:${k}`).join(', ')}
-        )`,
-    setMetadata: `UPDATE "spl_tokens" SET
-            metadataAcc=:metadataAcc,
-            name=:name,
-            symbol=:symbol,
-            mutable=:mutable,
-            name=:name,
-            symbol=:symbol
-        WHERE mintAcc=:mintAcc`,
-    updateName: `UPDATE "spl_tokens" SET name=:name WHERE metadataAcc=:metadataAcc`,
-    updateSymbol: `UPDATE "spl_tokens" SET symbol=:symbol WHERE metadataAcc=:metadataAcc`,
-    updateIssuance: `UPDATE
-          "spl_tokens" AS t
-        SET
-          issuance = COALESCE(t.issuance, 0) + (CAST(:issuanceChange AS NUMERIC) / power(10, t.decimals))
-        WHERE mintAcc=:mintAcc AND issuanceTracked=1`,
+        )
+        ON CONFLICT(mintAcc) DO UPDATE SET
+            ${TokenStorage.columns
+              .filter((c) => c !== 'mintAcc')
+              .map((c) => `${c}=excluded.${c}`)
+              .join(', ')}`,
   };
   private readonly statements: { [K in keyof TokenStorage['queries']]: StatementSync };
   private tokenByMintAcc: Map<string, SolanaToken> = new Map();
@@ -75,11 +67,7 @@ export class TokenStorage {
       )`,
     );
     this.statements = {
-      insert: db.prepare(this.queries.insert),
-      setMetadata: db.prepare(this.queries.setMetadata),
-      updateName: db.prepare(this.queries.updateName),
-      updateSymbol: db.prepare(this.queries.updateSymbol),
-      updateIssuance: db.prepare(this.queries.updateIssuance),
+      upsert: db.prepare(this.queries.upsert),
     };
     this.addKnownTokensToCache();
   }
@@ -90,150 +78,104 @@ export class TokenStorage {
     }
   }
 
-  getToken(mintAcc: string): SolanaToken | undefined {
-    let token = this.tokenByMintAcc.get(mintAcc);
+  getTokenFromCache(account: string, accountType: 'mintAcc' | 'metadataAcc' = 'mintAcc') {
+    return accountType === 'mintAcc'
+      ? this.tokenByMintAcc.get(account)
+      : this.tokenByMetadataAcc.get(account);
+  }
 
+  getTokenFromCacheOrFail(account: string, accountType: 'mintAcc' | 'metadataAcc' = 'mintAcc') {
+    const token = this.getTokenFromCache(account, accountType);
     if (!token) {
-      const md = this.getTokensFromDb([mintAcc]);
-      token = md[mintAcc];
-
-      if (token) {
-        this.tokenByMintAcc.set(mintAcc, token);
-      } else {
-        return undefined;
-      }
+      throw new Error(
+        `Token by ${accountType}: ${account} expected to be in cache, but is missing!`,
+      );
     }
     return token;
   }
 
-  updateTokenCache(updateData: SolanaTokenMetadata | SolanaTokenMetadataUpdate) {
-    const current =
-      'mintAcc' in updateData
-        ? this.tokenByMintAcc.get(updateData.mintAcc)
-        : this.tokenByMetadataAcc.get(updateData.metadataAcc);
-    if (!current) {
-      // If the token was not found in cache, we skip the update
-      return;
+  getToken(
+    account: string,
+    accountType: 'mintAcc' | 'metadataAcc' = 'mintAcc',
+  ): SolanaToken | undefined {
+    const token = this.getTokenFromCache(account, accountType);
+
+    if (token) {
+      return token;
     }
-    // lodash.merge ignores `undefined`
-    const updated = _.merge(current, updateData);
-    this.tokenByMintAcc.set(updated.mintAcc, updated);
-    this.tokenByMetadataAcc.set(updated.metadataAcc, updated);
+
+    // Cache miss: Load from db
+    this.loadTokensFromDb([account], accountType);
+
+    return this.getTokenFromCache(account, accountType);
   }
 
-  processBatch(
-    inserts: SolanaTokenMintData[],
-    metadataAssigns: SolanaTokenMetadata[],
-    metadataUpdates: SolanaTokenMetadataUpdate[],
-    issuanceChangesByMint: Map<string, bigint>,
-    trackIssuance = true,
-  ) {
-    const insertsByMint = new Map<string, SolanaToken>(
-      inserts.map((t) => [
-        t.mintAcc,
-        {
-          ...t,
-          issuanceTracked: trackIssuance ? 1 : 0,
-        },
-      ]),
-    );
-    const enrichmentsByMint = new Map<string, SolanaTokenMetadata>(
-      metadataAssigns.map((t) => [t.mintAcc, t]),
-    );
-    const enrichmentsByMeta = new Map<string, SolanaTokenMetadata>(
-      metadataAssigns.map((t) => [t.metadataAcc, t]),
-    );
-    const updatesGrouped = Object.entries(_.groupBy(metadataUpdates, (t) => t.metadataAcc));
-    const updatesByMeta = new Map<string, SolanaTokenMetadataUpdate>(
-      updatesGrouped.map(([metaAcc, updates]) => [metaAcc, _.merge(updates)]),
-    );
-
-    for (const update of updatesByMeta.values()) {
-      const enrichment = enrichmentsByMeta.get(update.metadataAcc);
-      if (enrichment) {
-        // Merge update into enrichment
-        updatesByMeta.delete(update.metadataAcc);
-        const merged = _.merge(enrichment, update);
-        enrichmentsByMint.set(enrichment.mintAcc, merged);
-        enrichmentsByMeta.set(enrichment.metadataAcc, merged);
-      }
+  getTokenOrFail(account: string, accountType: 'mintAcc' | 'metadataAcc' = 'mintAcc'): SolanaToken {
+    const token = this.getToken(account, accountType);
+    if (!token) {
+      throw new Error(`Cannot find token by ${accountType}: ${account}!`);
     }
-
-    for (const enrichment of enrichmentsByMint.values()) {
-      const token = insertsByMint.get(enrichment.mintAcc);
-      if (token) {
-        // Merge enrichment into insert
-        enrichmentsByMint.delete(token.mintAcc);
-        insertsByMint.set(token.mintAcc, _.merge(token, enrichment));
-      }
-    }
-
-    this.insertTokens(Array.from(insertsByMint.values()));
-    this.setTokensMetadata(Array.from(enrichmentsByMint.values()));
-    this.updateTokensMetadata(Array.from(updatesByMeta.values()));
-    this.updateTokensIssuance(
-      Array.from(issuanceChangesByMint.entries()).map(([mintAcc, issuanceChange]) => ({
-        mintAcc,
-        issuanceChange,
-      })),
-    );
+    return token;
   }
 
-  insertTokens(tokens: SolanaTokenMintData[]) {
-    for (const token of tokens) {
-      this.statements.insert.run(token);
-      this.tokenByMintAcc.set(token.mintAcc, token);
+  loadToCache(token: SolanaToken) {
+    this.tokenByMintAcc.set(token.mintAcc, token);
+    if (token.metadataAcc) {
+      this.tokenByMetadataAcc.set(token.metadataAcc, token);
     }
   }
 
-  setTokensMetadata(tokensMetadata: SolanaTokenMetadata[]) {
-    for (const meta of tokensMetadata) {
-      this.statements.setMetadata.run({
-        ...meta,
+  handleNew(mintData: SolanaTokenMintData, trackIssuance = true) {
+    this.loadToCache({
+      ...mintData,
+      issuanceTracked: trackIssuance ? 1 : 0,
+    });
+    this.pendingUpdateTokens.add(mintData.mintAcc);
+  }
+
+  handleSetMetadata(metadata: SolanaTokenMetadata) {
+    const token = this.getToken(metadata.mintAcc, 'mintAcc');
+    if (token) {
+      // If token is tracked...
+      _.merge(token, metadata);
+      this.pendingUpdateTokens.add(token.mintAcc);
+    }
+  }
+
+  handleUpdateMetadata(metadataUpdate: SolanaTokenMetadataUpdate) {
+    const token = this.getToken(metadataUpdate.metadataAcc, 'metadataAcc');
+    if (token) {
+      // If token is tracked...
+      _.merge(token, metadataUpdate);
+      this.pendingUpdateTokens.add(token.mintAcc);
+    }
+  }
+
+  handleUpdateTokensIssuance(mintAcc: string, change: bigint) {
+    const token = this.getToken(mintAcc, 'mintAcc');
+    if (token && token.issuanceTracked) {
+      // If token & token issuance is tracked...
+      token.issuance = (token.issuance || new Decimal(0)).add(
+        new Decimal(change).div(Math.pow(10, token.decimals)),
+      );
+      this.pendingUpdateTokens.add(token.mintAcc);
+    }
+  }
+
+  persistChanges() {
+    for (const mintAcc of this.pendingUpdateTokens) {
+      const token = this.getTokenFromCacheOrFail(mintAcc);
+      this.statements.upsert.run({
+        ...token,
+        issuance: token.issuance?.toString() || null,
       });
-      this.updateTokenCache(meta);
     }
   }
 
-  updateTokensMetadata(tokensMetadata: SolanaTokenMetadataUpdate[]) {
-    for (const meta of tokensMetadata) {
-      if (meta.name !== undefined) {
-        this.statements.updateName.run({
-          metadataAcc: meta.metadataAcc,
-          name: meta.name,
-        });
-      }
-      if (meta.symbol !== undefined) {
-        this.statements.updateSymbol.run({
-          metadataAcc: meta.metadataAcc,
-          symbol: meta.symbol,
-        });
-      }
-      if (meta.symbol !== undefined || meta.name !== undefined) {
-        this.updateTokenCache(meta);
-      }
-    }
-  }
+  loadTokensFromDb(accounts: string[], accountType: 'mintAcc' | 'metadataAcc' = 'mintAcc'): void {
+    if (!accounts.length) return;
 
-  updateTokensIssuance(issuanceChanges: TokenIssuanceChange[]) {
-    for (const { mintAcc, issuanceChange } of issuanceChanges) {
-      if (KNOWN_TOKENS.has(mintAcc)) {
-        continue;
-      }
-      this.statements.updateIssuance.run({ mintAcc, issuanceChange: issuanceChange.toString() });
-      const cached = this.tokenByMintAcc.get(mintAcc);
-      if (cached) {
-        cached.issuance = (cached.issuance || new Decimal(0)).add(
-          new Decimal(issuanceChange).div(Math.pow(10, cached.decimals)),
-        );
-      }
-    }
-  }
-
-  getTokensFromDb(mintAccs: string[]): Record<string, SolanaToken> {
-    if (!mintAccs.length) return {};
-
-    const params = new Array(mintAccs.length).fill('?').join(',');
+    const params = new Array(accounts.length).fill('?').join(',');
     const selectColumns = TokenStorage.columns.map((c) =>
       c === 'issuance' ? `CAST(${c} AS TEXT) AS ${c}` : c,
     );
@@ -241,23 +183,16 @@ export class TokenStorage {
         SELECT
           ${selectColumns.join(',')}
         FROM "spl_tokens"
-        WHERE "mintAcc" IN (${params})
+        WHERE "${accountType}" IN (${params})
     `);
 
-    const tokens = select.all(...mintAccs) as SolanaToken[];
+    const tokens = select.all(...accounts) as SolanaToken[];
 
     for (const token of tokens) {
       if (token.issuance) {
         token.issuance = new Decimal(token.issuance);
       }
+      this.loadToCache(token);
     }
-
-    return tokens.reduce(
-      (res, token) => ({
-        ...res,
-        [token.mintAcc]: token || undefined,
-      }),
-      {},
-    );
   }
 }

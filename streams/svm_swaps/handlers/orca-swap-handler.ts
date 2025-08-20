@@ -13,67 +13,73 @@ import {
 import { PostTokenBalance } from '@subsquid/solana-normalization';
 import { getInstructionDescriptor } from '@subsquid/solana-stream';
 import type { Traded } from '../contracts/orca-whirlpool/types';
-import { Block, Instruction, SolanaSwapCore } from '../types';
+import { Block, Instruction } from '../types';
+import { SwapStreamInstructionHandler } from '../solana-swap-stream.types';
 
-export function handleWhirlpool(ins: Instruction, block: Block): SolanaSwapCore {
-  const swapEvent = getSwapEvent(ins, block);
-  const [
-    {
-      accounts: { destination: tokenInAccount, authority },
-      data: { amount: inputTokenAmount },
-    },
-    {
-      accounts: { source: tokenOutAccount },
-      data: { amount: outputTokenAmount },
-    },
-  ] = getInnerTransfersByLevel(ins, block.instructions, 1).map((t) =>
-    tokenProgram.instructions.transfer.decode(t),
-  );
-  const tokenBalances = getInstructionBalances(ins, block);
-  const tokenIn = getPostTokenBalance(tokenBalances, tokenInAccount);
-  const tokenOut = getPostTokenBalance(tokenBalances, tokenOutAccount);
+export const whirlpoolSwapHandler: SwapStreamInstructionHandler = {
+  check: ({ ins }) =>
+    ins.programId === whirlpool.programId &&
+    whirlpool.instructions.swap.d8 === getInstructionDescriptor(ins),
+  run: ({ ins, block }) => {
+    const swapEvent = getSwapEvent(ins, block);
+    const [
+      {
+        accounts: { destination: tokenInAccount, authority },
+        data: { amount: inputTokenAmount },
+      },
+      {
+        accounts: { source: tokenOutAccount },
+        data: { amount: outputTokenAmount },
+      },
+    ] = getInnerTransfersByLevel(ins, block.instructions, 1).map((t) =>
+      tokenProgram.instructions.transfer.decode(t),
+    );
+    const tokenBalances = getInstructionBalances(ins, block);
+    const tokenIn = getPostTokenBalance(tokenBalances, tokenInAccount);
+    const tokenOut = getPostTokenBalance(tokenBalances, tokenOutAccount);
 
-  const swapPrice =
-    tokenIn && tokenOut && swapEvent ? getPoolPrice(swapEvent, tokenIn, tokenOut) : null;
+    const swapPrice =
+      tokenIn && tokenOut && swapEvent ? getPoolPrice(swapEvent, tokenIn, tokenOut) : null;
 
-  const slippagePct =
-    tokenIn && tokenOut && swapPrice && swapEvent
-      ? getSlippage(tokenIn, tokenOut, inputTokenAmount, outputTokenAmount, swapEvent, swapPrice)
-      : null;
+    const slippagePct =
+      tokenIn && tokenOut && swapPrice && swapEvent
+        ? getSlippage(tokenIn, tokenOut, inputTokenAmount, outputTokenAmount, swapEvent, swapPrice)
+        : null;
 
-  const { whirlpool: poolAddress, tokenVaultA, tokenVaultB } = getPoolAccounts(ins);
+    const { whirlpool: poolAddress, tokenVaultA, tokenVaultB } = getPoolAccounts(ins);
 
-  const reserves = getTokenReserves(ins, block, [tokenVaultA, tokenVaultB]);
-  const reserveIn = reserves[tokenIn.postMint];
-  const reserveOut = reserves[tokenOut.postMint];
-  assert(
-    reserveIn !== undefined,
-    `Orca: Missing input reserve. Tx hash: ${getTransactionHash(ins, block)}`,
-  );
-  assert(
-    reserveOut !== undefined,
-    `Orca: Missing output reserve. Tx hash: ${getTransactionHash(ins, block)}`,
-  );
+    const reserves = getTokenReserves(ins, block, [tokenVaultA, tokenVaultB]);
+    const reserveIn = reserves[tokenIn.postMint];
+    const reserveOut = reserves[tokenOut.postMint];
+    assert(
+      reserveIn !== undefined,
+      `Orca: Missing input reserve. Tx hash: ${getTransactionHash(ins, block)}`,
+    );
+    assert(
+      reserveOut !== undefined,
+      `Orca: Missing output reserve. Tx hash: ${getTransactionHash(ins, block)}`,
+    );
 
-  return {
-    type: 'orca_whirlpool',
-    poolAddress,
-    account: authority,
-    input: {
-      amount: inputTokenAmount,
-      mintAcc: tokenIn.postMint,
-      decimals: tokenIn.postDecimals,
-      reserves: reserveIn,
-    },
-    output: {
-      amount: outputTokenAmount,
-      mintAcc: tokenOut.postMint,
-      decimals: tokenOut.postDecimals,
-      reserves: reserveOut,
-    },
-    slippagePct,
-  };
-}
+    return {
+      type: 'orca_whirlpool',
+      poolAddress,
+      account: authority,
+      input: {
+        amount: inputTokenAmount,
+        mintAcc: tokenIn.postMint,
+        decimals: tokenIn.postDecimals,
+        reserves: reserveIn,
+      },
+      output: {
+        amount: outputTokenAmount,
+        mintAcc: tokenOut.postMint,
+        decimals: tokenOut.postDecimals,
+        reserves: reserveOut,
+      },
+      slippagePct,
+    };
+  },
+};
 
 function getPoolPrice(swapEvent: Traded, tokenIn: PostTokenBalance, tokenOut: PostTokenBalance) {
   const sqrtPrice = swapEvent.preSqrtPrice;

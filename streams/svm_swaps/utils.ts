@@ -164,6 +164,10 @@ export function getInstructionD1(instruction: Instruction) {
   return toHex(getInstructionData(instruction)).slice(0, 4);
 }
 
+export function getInstructionD4(instruction: Instruction) {
+  return toHex(getInstructionData(instruction)).slice(0, 16);
+}
+
 /**
  * Returns decoded token transfers from direct child instructions
  * @param ins

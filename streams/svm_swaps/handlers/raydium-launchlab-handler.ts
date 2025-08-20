@@ -1,7 +1,7 @@
 import assert from 'node:assert';
 import Decimal from 'decimal.js';
 import { DATA_SYM, getInstructionDescriptor } from '@subsquid/solana-stream';
-import * as raydiumLaunchlab from '../contracts/raydium-launchlab';
+import * as raydiumLaunchLab from '../contracts/raydium-launchlab';
 import {
   getDecimals,
   getDecodedInnerTransfers,
@@ -11,152 +11,175 @@ import {
   getTransactionHash,
   validateSwapAccounts,
 } from '../utils';
-import { Block, Instruction, LaunchLabConfig, LaunchLabCurveType, SolanaSwapCore } from '../types';
-import { TradeEvent } from '../contracts/raydium-launchlab/types';
-import { LaunchLabConfigStorage } from '../../storage/launchlab-config-storage';
+import { Block, Instruction, LaunchLabConfig, LaunchLabCurveType } from '../types';
+import { TradeEvent } from '../contracts/raydium-launchlab/v1/types';
+import { SwapStreamInstructionHandler } from '../solana-swap-stream.types';
 
 export const DEX_NAME = 'Raydium LaunchLab';
 
+function getVersion(ins: Instruction, block: Block): raydiumLaunchLab.Version {
+  // Return first version (when in DESC order) which starts from eariler block/tx than the current one
+  const versions = raydiumLaunchLab.VERSIONS;
+  for (let i = versions.length - 1; i >= 0; --i) {
+    const version = versions[i];
+    if (
+      version.fromBlock < block.header.number ||
+      (version.fromBlock === block.header.number && version.fromTxIdx < ins.transactionIndex)
+    ) {
+      return version.name;
+    }
+  }
+  throw new Error(`Cannot find matching Radyium Launchlab version at block ${block.header.number}`);
+}
+
 export function decodeSwapInstruction(ins: Instruction) {
   const d8 = getInstructionDescriptor(ins);
+  // Those instructions are the same in v1 and v2
   switch (d8) {
-    case raydiumLaunchlab.instructions.buyExactIn.d8:
-      return raydiumLaunchlab.instructions.buyExactIn.decode(ins);
-    case raydiumLaunchlab.instructions.buyExactOut.d8:
-      return raydiumLaunchlab.instructions.buyExactOut.decode(ins);
-    case raydiumLaunchlab.instructions.sellExactIn.d8:
-      return raydiumLaunchlab.instructions.sellExactIn.decode(ins);
-    case raydiumLaunchlab.instructions.sellExactOut.d8:
-      return raydiumLaunchlab.instructions.sellExactOut.decode(ins);
+    case raydiumLaunchLab.v1.instructions.buyExactIn.d8:
+      return raydiumLaunchLab.v1.instructions.buyExactIn.decode(ins);
+    case raydiumLaunchLab.v1.instructions.buyExactOut.d8:
+      return raydiumLaunchLab.v1.instructions.buyExactOut.decode(ins);
+    case raydiumLaunchLab.v1.instructions.sellExactIn.d8:
+      return raydiumLaunchLab.v1.instructions.sellExactIn.decode(ins);
+    case raydiumLaunchLab.v1.instructions.sellExactOut.d8:
+      return raydiumLaunchLab.v1.instructions.sellExactOut.decode(ins);
     default:
       throw new Error(`${DEX_NAME}: Unrecognized swap instruction`);
   }
 }
 
-function getSwapEvent(ins: Instruction, block: Block): TradeEvent {
+function getSwapEvent(ins: Instruction, block: Block, version?: raydiumLaunchLab.Version) {
+  version = version || getVersion(ins, block);
   const innerInstructions = getInnerInstructions(ins, block.instructions);
   for (const inner of innerInstructions) {
     if (getInstructionDescriptor(inner) === '0xe445a52e51cb9a1d') {
       const hex = Buffer.from((inner[DATA_SYM] as Uint8Array).slice(8)).toString('hex');
-      return raydiumLaunchlab.events.TradeEvent.decode({ msg: `0x${hex}` });
+      return raydiumLaunchLab[version].events.TradeEvent.decode({ msg: `0x${hex}` });
     }
   }
-  throw new Error(`${DEX_NAME}: TradeEvent not found. Tx hash: ${getTransactionHash(ins, block)}`);
+  throw new Error(`${DEX_NAME}: TradeEvent not found`);
 }
 
 function isBuyInstruction(ins: Instruction) {
   const d8 = getInstructionDescriptor(ins);
   return (
-    d8 === raydiumLaunchlab.instructions.buyExactIn.d8 ||
-    d8 === raydiumLaunchlab.instructions.buyExactOut.d8
+    d8 === raydiumLaunchLab.v1.instructions.buyExactIn.d8 ||
+    d8 === raydiumLaunchLab.v1.instructions.buyExactOut.d8
   );
 }
 
 function isSellInstruction(ins: Instruction) {
   const d8 = getInstructionDescriptor(ins);
   return (
-    d8 === raydiumLaunchlab.instructions.sellExactIn.d8 ||
-    d8 === raydiumLaunchlab.instructions.sellExactOut.d8
+    d8 === raydiumLaunchLab.v1.instructions.sellExactIn.d8 ||
+    d8 === raydiumLaunchLab.v1.instructions.sellExactOut.d8
   );
 }
 
-export function isSwapInstruction(ins: Instruction) {
-  return isBuyInstruction(ins) || isSellInstruction(ins);
-}
+export const swapHandler: SwapStreamInstructionHandler = {
+  check: ({ ins }) =>
+    ins.programId === raydiumLaunchLab.programId &&
+    (isBuyInstruction(ins) || isSellInstruction(ins)),
+  run: ({ ins, block, context: { storage } }) => {
+    const version = getVersion(ins, block);
+    const decoded = decodeSwapInstruction(ins);
+    const txHash = getTransactionHash(ins, block);
+    const {
+      globalConfig,
+      poolState: poolAcc,
+      baseTokenMint,
+      quoteTokenMint,
+      baseVault,
+      quoteVault,
+      userBaseToken,
+      userQuoteToken,
+    } = decoded.accounts;
+    // First 2 transfers should be in and out, the next ones can be fees etc.
+    // Example: 2ngyETx33vv9h2NSwHcupxjiadMZ9ZQgiTrVQrPYM1mCK3q4JnLLEqbFfBPaqP5hVXopM8tzk3i9k5ePw6BVn8pa
+    const [transferIn, transferOut] = getDecodedInnerTransfers(ins, block).slice(0, 2);
+    const isBuy = isBuyInstruction(ins);
+    const tokenInMintAcc = isBuy ? quoteTokenMint : baseTokenMint;
+    const tokenOutMintAcc = isBuy ? baseTokenMint : quoteTokenMint;
+    const userInAcc = isBuy ? userQuoteToken : userBaseToken;
+    const userOutAcc = isBuy ? userBaseToken : userQuoteToken;
+    const reserveInAcc = isBuy ? quoteVault : baseVault;
+    const reserveOutAcc = isBuy ? baseVault : quoteVault;
+    validateSwapAccounts(
+      transferIn,
+      transferOut,
+      userInAcc,
+      userOutAcc,
+      reserveInAcc,
+      reserveOutAcc,
+      txHash,
+      DEX_NAME,
+    );
 
-export function handleSwap(
-  ins: Instruction,
-  block: Block,
-  configStorage: LaunchLabConfigStorage,
-): SolanaSwapCore {
-  const decoded = decodeSwapInstruction(ins);
-  const event = getSwapEvent(ins, block);
-  const txHash = getTransactionHash(ins, block);
-  const {
-    globalConfig,
-    poolState: poolAcc,
-    baseTokenMint,
-    quoteTokenMint,
-    baseVault,
-    quoteVault,
-    userBaseToken,
-    userQuoteToken,
-  } = decoded.accounts;
-  // First 2 transfers should be in and out, the next ones can be fees etc.
-  // Example: 2ngyETx33vv9h2NSwHcupxjiadMZ9ZQgiTrVQrPYM1mCK3q4JnLLEqbFfBPaqP5hVXopM8tzk3i9k5ePw6BVn8pa
-  const [transferIn, transferOut] = getDecodedInnerTransfers(ins, block).slice(0, 2);
-  const isBuy = isBuyInstruction(ins);
-  const tokenInMintAcc = isBuy ? quoteTokenMint : baseTokenMint;
-  const tokenOutMintAcc = isBuy ? baseTokenMint : quoteTokenMint;
-  const userInAcc = isBuy ? userQuoteToken : userBaseToken;
-  const userOutAcc = isBuy ? userBaseToken : userQuoteToken;
-  const reserveInAcc = isBuy ? quoteVault : baseVault;
-  const reserveOutAcc = isBuy ? baseVault : quoteVault;
-  validateSwapAccounts(
-    transferIn,
-    transferOut,
-    userInAcc,
-    userOutAcc,
-    reserveInAcc,
-    reserveOutAcc,
-    txHash,
-    DEX_NAME,
-  );
+    const {
+      accounts: { authority, owner },
+    } = transferIn;
+    const swapAcccount = authority || owner;
 
-  const {
-    accounts: { authority, owner },
-  } = transferIn;
-  const swapAcccount = authority || owner;
+    assert(swapAcccount, `${DEX_NAME}: Failed to find authority/owner account! Tx: ${txHash}`);
 
-  assert(swapAcccount, `${DEX_NAME}: Failed to find authority/owner account! Tx: ${txHash}`);
+    const tokenBalances = getInstructionBalances(ins, block);
+    const reserveIn = getTokenBalance(tokenBalances, reserveInAcc);
+    const reserveOut = getTokenBalance(tokenBalances, reserveOutAcc);
 
-  const tokenBalances = getInstructionBalances(ins, block);
-  const reserveIn = getTokenBalance(tokenBalances, reserveInAcc);
-  const reserveOut = getTokenBalance(tokenBalances, reserveOutAcc);
+    const { curveType } = storage.launchLabConfig.getConfig(globalConfig);
+    const decimalsBase = isBuy ? getDecimals(reserveOut) : getDecimals(reserveIn);
+    const decimalsQuote = isBuy ? getDecimals(reserveIn) : getDecimals(reserveOut);
 
-  const { curveType } = configStorage.getConfig(globalConfig);
-  const decimalsBase = isBuy ? getDecimals(reserveOut) : getDecimals(reserveIn);
-  const decimalsQuote = isBuy ? getDecimals(reserveIn) : getDecimals(reserveOut);
-  const poolPriceBefore = getPoolPrice(
-    curveType,
-    event.virtualBase,
-    event.virtualQuote,
-    event.realBaseBefore,
-    event.realQuoteBefore,
-    decimalsBase,
-    decimalsQuote,
-  );
-  const actuallyPaidPrice = getActuallyPaidPrice(event, isBuy, decimalsBase, decimalsQuote);
+    const event = getSwapEvent(ins, block, version);
+    const poolPriceBefore = getPoolPrice(
+      curveType,
+      event.virtualBase,
+      event.virtualQuote,
+      event.realBaseBefore,
+      event.realQuoteBefore,
+      decimalsBase,
+      decimalsQuote,
+    );
+    const actuallyPaidPrice = getActuallyPaidPrice(event, isBuy, decimalsBase, decimalsQuote);
 
-  return {
-    account: swapAcccount,
-    input: {
-      amount: transferIn.data.amount,
-      decimals: getDecimals(reserveIn),
-      mintAcc: tokenInMintAcc,
-      reserves: reserveIn.preAmount || 0n,
-    },
-    output: {
-      amount: transferOut.data.amount,
-      decimals: getDecimals(reserveOut),
-      mintAcc: tokenOutMintAcc,
-      reserves: reserveOut.preAmount || 0n,
-    },
-    poolAddress: poolAcc,
-    slippagePct: (isBuy ? 100 : -100) * actuallyPaidPrice.div(poolPriceBefore).sub(1).toNumber(),
-    type: 'raydium_launchlab',
-  };
-}
+    return {
+      account: swapAcccount,
+      input: {
+        amount: transferIn.data.amount,
+        decimals: getDecimals(reserveIn),
+        mintAcc: tokenInMintAcc,
+        reserves: reserveIn.preAmount || 0n,
+      },
+      output: {
+        amount: transferOut.data.amount,
+        decimals: getDecimals(reserveOut),
+        mintAcc: tokenOutMintAcc,
+        reserves: reserveOut.preAmount || 0n,
+      },
+      poolAddress: poolAcc,
+      slippagePct: (isBuy ? 100 : -100) * actuallyPaidPrice.div(poolPriceBefore).sub(1).toNumber(),
+      type: 'raydium_launchlab',
+    };
+  },
+};
 
-export function handleCreateGlobalConfig(ins: Instruction): LaunchLabConfig {
-  const decoded = raydiumLaunchlab.instructions.createConfig.decode(ins);
-  const { globalConfig } = decoded.accounts;
-  const { curveType } = decoded.data;
-  return {
-    account: globalConfig,
-    curveType,
-  };
-}
+export const createGlobalConfigHandler: SwapStreamInstructionHandler = {
+  check: ({ ins }) =>
+    ins.programId === raydiumLaunchLab.programId &&
+    getInstructionDescriptor(ins) === raydiumLaunchLab.v1.instructions.createConfig.d8,
+  run: ({ ins, context: { storage } }) => {
+    // No diff between v1 and v2
+    const decoded = raydiumLaunchLab.v1.instructions.createConfig.decode(ins);
+    const { globalConfig } = decoded.accounts;
+    const { curveType } = decoded.data;
+    const config: LaunchLabConfig = {
+      account: globalConfig,
+      curveType,
+    };
+    storage.launchLabConfig.insertConfig(config);
+  },
+};
 
 function getActuallyPaidPrice(
   event: TradeEvent,

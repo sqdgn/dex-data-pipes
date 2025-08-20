@@ -1,11 +1,14 @@
-import { struct, u64, unit, u8, u16 } from '@subsquid/borsh';
-import { instruction } from '../abi.support';
+import { struct, u64, unit, u8, u16, option } from '@subsquid/borsh';
+import { instruction } from '../../abi.support';
 import {
   PlatformParams,
   MintParams,
   CurveParams,
   VestingParams,
+  AmmCreatorFeeOn,
+  TransferFeeExtensionParams,
   PlatformConfigParam,
+  BondingCurveParam,
 } from './types';
 
 /**
@@ -213,6 +216,57 @@ export const buyExactOut = instruction(
 );
 
 /**
+ * Claim the fee from the exclusive creator fee vault.
+ * # Arguments
+ *
+ * * `ctx` - The context of accounts
+ *
+ */
+export type ClaimCreatorFee = undefined;
+
+/**
+ * Claim the fee from the exclusive creator fee vault.
+ * # Arguments
+ *
+ * * `ctx` - The context of accounts
+ *
+ */
+export const claimCreatorFee = instruction(
+  {
+    d8: '0x1a618acb84ab8dfc',
+  },
+  {
+    /**
+     * The pool creator
+     */
+    creator: 0,
+    feeVaultAuthority: 1,
+    /**
+     * The creator fee vault
+     */
+    creatorFeeVault: 2,
+    recipientTokenAccount: 3,
+    /**
+     * The mint for the quote token
+     */
+    quoteMint: 4,
+    /**
+     * SPL Token program for the quote token
+     */
+    tokenProgram: 5,
+    /**
+     * Required for account creation
+     */
+    systemProgram: 6,
+    /**
+     * Required for associated token program
+     */
+    associatedTokenProgram: 7,
+  },
+  unit,
+);
+
+/**
  * Claim platform fee
  * # Arguments
  *
@@ -272,6 +326,64 @@ export const claimPlatformFee = instruction(
      * Required for associated token program
      */
     associatedTokenProgram: 9,
+  },
+  unit,
+);
+
+/**
+ * Claim the fee from the exclusive platform fee vault.
+ * # Arguments
+ *
+ * * `ctx` - The context of accounts
+ *
+ */
+export type ClaimPlatformFeeFromVault = undefined;
+
+/**
+ * Claim the fee from the exclusive platform fee vault.
+ * # Arguments
+ *
+ * * `ctx` - The context of accounts
+ *
+ */
+export const claimPlatformFeeFromVault = instruction(
+  {
+    d8: '0x75f1c6a8f8da501d',
+  },
+  {
+    /**
+     * Only the wallet stored in platform_config can collect platform fees
+     */
+    platformFeeWallet: 0,
+    feeVaultAuthority: 1,
+    /**
+     * The platform config account
+     */
+    platformConfig: 2,
+    /**
+     * The platform fee vault
+     */
+    platformFeeVault: 3,
+    /**
+     * The address that receives the collected quote token fees
+     */
+    recipientTokenAccount: 4,
+    /**
+     * The mint of quote token vault
+     */
+    quoteMint: 5,
+    /**
+     * SPL program for input token transfers
+     */
+    tokenProgram: 6,
+    /**
+     * Required for account creation
+     */
+    systemProgram: 7,
+    /**
+     * Required for associated token program
+     */
+    associatedTokenProgram: 8,
   },
   unit,
 );
@@ -566,10 +678,12 @@ export const createPlatformConfig = instruction(
      * The platform config account
      */
     platformConfig: 3,
+    cpswapConfig: 4,
     /**
      * Required for account creation
      */
-    systemProgram: 4,
+    systemProgram: 5,
+    transferFeeExtensionAuthority: 6,
   },
   struct({
     platformParams: PlatformParams,
@@ -606,6 +720,11 @@ export const createVestingAccount = instruction(
      * This can be any account with sufficient SOL to cover the transaction
      */
     creator: 0,
+    /**
+     * The beneficiary is used to receive the allocated linear release of tokens.
+     * Once this account is set, it cannot be modified, so please ensure the validity of this account,
+     * otherwise, the unlocked tokens will not be claimable.
+     */
     beneficiary: 1,
     /**
      * The pool state account
@@ -730,6 +849,215 @@ export const initialize = instruction(
     baseMintParam: MintParams,
     curveParam: CurveParams,
     vestingParam: VestingParams,
+  }),
+);
+
+/**
+ * Initializes a new trading pool
+ * # Arguments
+ *
+ * * `ctx` - The context of accounts containing pool and token information
+ *
+ */
+export interface InitializeV2 {
+  baseMintParam: MintParams;
+  curveParam: CurveParams;
+  vestingParam: VestingParams;
+  ammFeeOn: AmmCreatorFeeOn;
+}
+
+/**
+ * Initializes a new trading pool
+ * # Arguments
+ *
+ * * `ctx` - The context of accounts containing pool and token information
+ *
+ */
+export const initializeV2 = instruction(
+  {
+    d8: '0x4399af27da102620',
+  },
+  {
+    /**
+     * The account paying for the initialization costs
+     * This can be any account with sufficient SOL to cover the transaction
+     */
+    payer: 0,
+    creator: 1,
+    /**
+     * Global configuration account containing protocol-wide settings
+     * Includes settings like quote token mint and fee parameters
+     */
+    globalConfig: 2,
+    /**
+     * Platform configuration account containing platform info
+     * Includes settings like the fee_rate, name, web, img of the platform
+     */
+    platformConfig: 3,
+    /**
+     * PDA that acts as the authority for pool vault and mint operations
+     * Generated using AUTH_SEED
+     */
+    authority: 4,
+    /**
+     * Account that stores the pool's state and parameters
+     * PDA generated using POOL_SEED and both token mints
+     */
+    poolState: 5,
+    /**
+     * The mint for the base token (token being sold)
+     * Created in this instruction with specified decimals
+     */
+    baseMint: 6,
+    /**
+     * The mint for the quote token (token used to buy)
+     * Must match the quote_mint specified in global config
+     */
+    quoteMint: 7,
+    /**
+     * Token account that holds the pool's base tokens
+     * PDA generated using POOL_VAULT_SEED
+     */
+    baseVault: 8,
+    /**
+     * Token account that holds the pool's quote tokens
+     * PDA generated using POOL_VAULT_SEED
+     */
+    quoteVault: 9,
+    /**
+     * Account to store the base token's metadata
+     * Created using Metaplex metadata program
+     */
+    metadataAccount: 10,
+    /**
+     * SPL Token program for the base token
+     * Must be the standard Token program
+     */
+    baseTokenProgram: 11,
+    /**
+     * SPL Token program for the quote token
+     */
+    quoteTokenProgram: 12,
+    /**
+     * Metaplex Token Metadata program
+     * Used to create metadata for the base token
+     */
+    metadataProgram: 13,
+    /**
+     * Required for account creation
+     */
+    systemProgram: 14,
+    /**
+     * Required for rent exempt calculations
+     */
+    rentProgram: 15,
+    eventAuthority: 16,
+    program: 17,
+  },
+  struct({
+    baseMintParam: MintParams,
+    curveParam: CurveParams,
+    vestingParam: VestingParams,
+    ammFeeOn: AmmCreatorFeeOn,
+  }),
+);
+
+/**
+ * Initializes a new trading pool with base token belongs to spl-token-2022,
+ * pool created by this instruction must be migrated to cpswap after fundraising ends, i.e., curve_param.migrate_type = 1
+ * # Arguments
+ *
+ * * `ctx` - The context of accounts containing pool and token information
+ *
+ */
+export interface InitializeWithToken2022 {
+  baseMintParam: MintParams;
+  curveParam: CurveParams;
+  vestingParam: VestingParams;
+  ammFeeOn: AmmCreatorFeeOn;
+  transferFeeExtensionParam?: TransferFeeExtensionParams | undefined;
+}
+
+/**
+ * Initializes a new trading pool with base token belongs to spl-token-2022,
+ * pool created by this instruction must be migrated to cpswap after fundraising ends, i.e., curve_param.migrate_type = 1
+ * # Arguments
+ *
+ * * `ctx` - The context of accounts containing pool and token information
+ *
+ */
+export const initializeWithToken2022 = instruction(
+  {
+    d8: '0x25be7ede2c9aab11',
+  },
+  {
+    /**
+     * The account paying for the initialization costs
+     * This can be any account with sufficient SOL to cover the transaction
+     */
+    payer: 0,
+    creator: 1,
+    /**
+     * Global configuration account containing protocol-wide settings
+     * Includes settings like quote token mint and fee parameters
+     */
+    globalConfig: 2,
+    /**
+     * Platform configuration account containing platform info
+     * Includes settings like the fee_rate, name, web, img of the platform
+     */
+    platformConfig: 3,
+    /**
+     * PDA that acts as the authority for pool vault and mint operations
+     * Generated using AUTH_SEED
+     */
+    authority: 4,
+    /**
+     * Account that stores the pool's state and parameters
+     * PDA generated using POOL_SEED and both token mints
+     */
+    poolState: 5,
+    /**
+     * The mint for the base token (token being sold)
+     * Created in this instruction with specified decimals
+     */
+    baseMint: 6,
+    /**
+     * The mint for the quote token (token used to buy)
+     * Must match the quote_mint specified in global config
+     */
+    quoteMint: 7,
+    /**
+     * Token account that holds the pool's base tokens
+     * PDA generated using POOL_VAULT_SEED
+     */
+    baseVault: 8,
+    /**
+     * Token account that holds the pool's quote tokens
+     * PDA generated using POOL_VAULT_SEED
+     */
+    quoteVault: 9,
+    /**
+     * SPL Token program for the base token
+     */
+    baseTokenProgram: 10,
+    /**
+     * SPL Token program for the quote token
+     */
+    quoteTokenProgram: 11,
+    /**
+     * Required for account creation
+     */
+    systemProgram: 12,
+    eventAuthority: 13,
+    program: 14,
+  },
+  struct({
+    baseMintParam: MintParams,
+    curveParam: CurveParams,
+    vestingParam: VestingParams,
+    ammFeeOn: AmmCreatorFeeOn,
+    transferFeeExtensionParam: option(TransferFeeExtensionParams),
   }),
 );
 
@@ -972,6 +1300,45 @@ export const migrateToCpswap = instruction(
     metadataProgram: 27,
   },
   unit,
+);
+
+/**
+ * Remove platform launch param
+ * # Arguments
+ *
+ * * `ctx` - The context of accounts
+ * * `index` - The index of the curve param to remove
+ *
+ */
+export interface RemovePlatformCurveParam {
+  index: number;
+}
+
+/**
+ * Remove platform launch param
+ * # Arguments
+ *
+ * * `ctx` - The context of accounts
+ * * `index` - The index of the curve param to remove
+ *
+ */
+export const removePlatformCurveParam = instruction(
+  {
+    d8: '0x1b1e3ea95de01891',
+  },
+  {
+    /**
+     * The account paying for the initialization costs
+     */
+    platformAdmin: 0,
+    /**
+     * Platform config account to be changed
+     */
+    platformConfig: 1,
+  },
+  struct({
+    index: u8,
+  }),
 );
 
 /**
@@ -1263,5 +1630,55 @@ export const updatePlatformConfig = instruction(
   },
   struct({
     param: PlatformConfigParam,
+  }),
+);
+
+/**
+ * Update platform launch param
+ * # Arguments
+ *
+ * * `ctx` - The context of accounts
+ * * `bonding_curve_param` - Parameter to update
+ *
+ */
+export interface UpdatePlatformCurveParam {
+  index: number;
+  bondingCurveParam: BondingCurveParam;
+}
+
+/**
+ * Update platform launch param
+ * # Arguments
+ *
+ * * `ctx` - The context of accounts
+ * * `bonding_curve_param` - Parameter to update
+ *
+ */
+export const updatePlatformCurveParam = instruction(
+  {
+    d8: '0x8a908afadc800439',
+  },
+  {
+    /**
+     * The account paying for the initialization costs
+     */
+    platformAdmin: 0,
+    /**
+     * Platform config account to be changed
+     */
+    platformConfig: 1,
+    /**
+     * Global configuration account containing protocol-wide settings
+     * Includes settings like quote token mint and fee parameters
+     */
+    globalConfig: 2,
+    /**
+     * System program for lamport transfers
+     */
+    systemProgram: 3,
+  },
+  struct({
+    index: u8,
+    bondingCurveParam: BondingCurveParam,
   }),
 );

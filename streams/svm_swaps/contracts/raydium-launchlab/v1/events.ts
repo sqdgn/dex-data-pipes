@@ -1,4 +1,4 @@
-import { event } from '../abi.support';
+import { event } from '../../abi.support';
 import {
   ClaimVestedEvent as ClaimVestedEvent_,
   CreateVestingEvent as CreateVestingEvent_,

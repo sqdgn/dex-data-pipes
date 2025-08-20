@@ -10,7 +10,7 @@ export function instruction<
   A extends Record<string, number>,
   DataCodec extends Codec<any>,
 >(d: D, accounts: A, data: DataCodec): DeriveInstruction<D, A, DataCodec> {
-  let ins = new Instruction(accounts, data);
+  const ins = new Instruction(accounts, data);
   Object.assign(ins, d);
   return ins as any;
 }
@@ -19,7 +19,7 @@ export function event<D extends Discriminator, DataCodec extends Codec<any>>(
   d: D,
   data: DataCodec,
 ): DeriveEvent<D, DataCodec> {
-  let event = new Event(data);
+  const event = new Event(data);
   Object.assign(event, d);
   return event as any;
 }
@@ -44,14 +44,10 @@ class Instruction<A, D> {
     private data: Codec<D>,
   ) {}
 
-  accountSelection(
-    accounts: {
-      [K in keyof A]?: Base58Bytes[];
-    },
-  ): AccountSelection {
-    let selection: any = {};
-    for (let key in accounts) {
-      let idx = this.accounts[key];
+  accountSelection(accounts: { [K in keyof A]?: Base58Bytes[] }): AccountSelection {
+    const selection: any = {};
+    for (const key in accounts) {
+      const idx = this.accounts[key];
       assert(idx < 10);
       selection['a' + idx] = accounts[key];
     }
@@ -69,15 +65,15 @@ class Instruction<A, D> {
   }
 
   decodeAccounts(accounts: Base58Bytes[]): A {
-    let result: any = {};
-    for (let key in this.accounts) {
+    const result: any = {};
+    for (const key in this.accounts) {
       result[key] = accounts[this.accounts[key]];
     }
     return result;
   }
 
   decodeData(data: Uint8Array): D {
-    let src = new Src(data);
+    const src = new Src(data);
     this.assertDiscriminator(src);
     return this.data.decode(src);
   }
@@ -92,24 +88,24 @@ class Instruction<A, D> {
   }
 
   private createDiscriminatorAssertion(): (src: Src) => void {
-    let self: Discriminator = this as any;
+    const self: Discriminator = this as any;
     if (self.d8 != null) {
-      let d = new Src(decodeHex(self.d8)).u64();
+      const d = new Src(decodeHex(self.d8)).u64();
       return (src) => {
         assert(d === src.u64());
       };
     } else if (self.d4 != null) {
-      let d = new Src(decodeHex(self.d4)).u32();
+      const d = new Src(decodeHex(self.d4)).u32();
       return (src) => {
         assert(d === src.u32());
       };
     } else if (self.d2 != null) {
-      let d = new Src(decodeHex(self.d2)).u16();
+      const d = new Src(decodeHex(self.d2)).u16();
       return (src) => {
         assert(d === src.u16());
       };
     } else {
-      let d = new Src(decodeHex(self.d1)).u8();
+      const d = new Src(decodeHex(self.d1)).u8();
       return (src) => {
         assert(d === src.u8());
       };
@@ -120,12 +116,14 @@ class Instruction<A, D> {
 class Event<D> {
   constructor(private data: Codec<D>) {}
 
-  decode(event: { msg: Bytes }): D {
+  decode(event: {
+    msg: Bytes;
+  }): D {
     return this.decodeData(decodeHex(event.msg));
   }
 
   decodeData(data: Uint8Array): D {
-    let src = new Src(data);
+    const src = new Src(data);
     this.assertDiscriminator(src);
     return this.data.decode(src);
   }
@@ -140,24 +138,24 @@ class Event<D> {
   }
 
   private createDiscriminatorAssertion(): (src: Src) => void {
-    let self: Discriminator = this as any;
+    const self: Discriminator = this as any;
     if (self.d8 != null) {
-      let d = new Src(decodeHex(self.d8)).u64();
+      const d = new Src(decodeHex(self.d8)).u64();
       return (src) => {
         assert(d === src.u64());
       };
     } else if (self.d4 != null) {
-      let d = new Src(decodeHex(self.d4)).u32();
+      const d = new Src(decodeHex(self.d4)).u32();
       return (src) => {
         assert(d === src.u32());
       };
     } else if (self.d2 != null) {
-      let d = new Src(decodeHex(self.d2)).u16();
+      const d = new Src(decodeHex(self.d2)).u16();
       return (src) => {
         assert(d === src.u16());
       };
     } else {
-      let d = new Src(decodeHex(self.d1)).u8();
+      const d = new Src(decodeHex(self.d1)).u8();
       return (src) => {
         assert(d === src.u8());
       };

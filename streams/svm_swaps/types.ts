@@ -202,3 +202,14 @@ export type TokenIssuanceChange = {
   mintAcc: string;
   issuanceChange: bigint;
 };
+
+export type ProgramVersion<T> = {
+  name: T;
+  fromBlock: number;
+  fromTxIdx: number;
+};
+
+export type InstructionHandler<Block, Instruction, Context = never, Result = void> = {
+  check: (data: { ins: Instruction; block: Block }) => boolean;
+  run: (data: { ins: Instruction; block: Block; context: Context }) => Result;
+};
