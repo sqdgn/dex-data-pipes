@@ -1,8 +1,8 @@
-import * as token from '../contracts/token-program';
-import * as token2022 from '../contracts/token-2022-program';
-import { Instruction, SolanaTokenMintData } from '../types';
-import { getInstructionD1, getTransactionHash } from '../utils';
-import { SwapStreamInstructionHandler } from '../solana-swap-stream.types';
+import * as token from '../../contracts/token-program';
+import * as token2022 from '../../contracts/token-2022-program';
+import { Instruction, SolanaTokenMintData } from '../../types';
+import { getInstructionD1, getTransactionHash } from '../../utils';
+import { SwapStreamInstructionHandler } from '../types';
 
 export const tokenProgramIds = [token.programId, token2022.programId];
 

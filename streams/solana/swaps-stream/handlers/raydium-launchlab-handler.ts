@@ -1,7 +1,7 @@
 import assert from 'node:assert';
 import Decimal from 'decimal.js';
 import { DATA_SYM, getInstructionDescriptor } from '@subsquid/solana-stream';
-import * as raydiumLaunchLab from '../contracts/raydium-launchlab';
+import * as raydiumLaunchLab from '../../contracts/raydium-launchlab';
 import {
   getDecimals,
   getDecodedInnerTransfers,
@@ -10,10 +10,10 @@ import {
   getTokenBalance,
   getTransactionHash,
   validateSwapAccounts,
-} from '../utils';
-import { Block, Instruction, LaunchLabConfig, LaunchLabCurveType } from '../types';
-import { TradeEvent } from '../contracts/raydium-launchlab/v1/types';
-import { SwapStreamInstructionHandler } from '../solana-swap-stream.types';
+} from '../../utils';
+import { Block, Instruction, LaunchLabConfig, LaunchLabCurveType } from '../../types';
+import { TradeEvent } from '../../contracts/raydium-launchlab/v1/types';
+import { SwapStreamInstructionHandler } from '../types';
 
 export const DEX_NAME = 'Raydium LaunchLab';
 

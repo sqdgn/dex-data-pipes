@@ -1,7 +1,7 @@
-import * as raydiumCpmm from '../../contracts/raydium-cpmm';
+import * as raydiumCpmm from '../../../contracts/raydium-cpmm';
 import { RaydiumCpmmSwapBaseInputHandler } from './base-input-handler';
 import { RaydiumCpmmSwapBaseOutputHandler } from './base-output-handler';
-import { SwapStreamInstructionHandler } from '../../solana-swap-stream.types';
+import { SwapStreamInstructionHandler } from '../../types';
 import { getInstructionDescriptor } from '@subsquid/solana-stream';
 
 export const handlerRegistry = {

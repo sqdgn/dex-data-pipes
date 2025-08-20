@@ -1,0 +1,1 @@
+export { PriceExtendStream } from './stream';

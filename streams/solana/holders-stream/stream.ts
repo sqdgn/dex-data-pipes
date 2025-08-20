@@ -1,15 +1,15 @@
 import _ from 'lodash';
 import { PortalAbstractStream, StreamOptions } from '@sqd-pipes/core';
 import { ClickHouseClient } from '@clickhouse/client';
-import * as token from './contracts/token-program';
-import * as token2022 from './contracts/token-2022-program';
-import { PartialBlock, PartialInstruction, TokenHoldersEntry } from './types';
+import * as token from '../contracts/token-program';
+import * as token2022 from '../contracts/token-2022-program';
+import { PartialBlock, PartialInstruction, TokenHoldersEntry } from '../types';
 import {
   decodeInitializeMint,
   isInitializeMintInstruction,
 } from './handlers/initialize-mint-handler';
-import { HolderCounter } from './util/HolderCounter';
-import { getInstructionContext, getTransactionHash, normalizeTokenBalance } from './utils';
+import { HolderCounter } from '../util/HolderCounter';
+import { getTransactionHash, normalizeTokenBalance } from '../utils';
 
 export const holdersStreamFieldsSelection = {
   block: {

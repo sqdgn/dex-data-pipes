@@ -1,7 +1,10 @@
-import assert from 'node:assert';
-import * as raydiumCpmm from '../../contracts/raydium-cpmm';
-import { getDecodedInnerTransfers, getInstructionBalances, getPostTokenBalance } from '../../utils';
-import { TokenAmount, Instruction, Block, SolanaSwapCore } from '../../types';
+import * as raydiumCpmm from '../../../contracts/raydium-cpmm';
+import {
+  getDecodedInnerTransfers,
+  getInstructionBalances,
+  getPostTokenBalance,
+} from '../../../utils';
+import { TokenAmount, Instruction, Block, SolanaSwapCore } from '../../../types';
 
 interface Token {
   mint: string;

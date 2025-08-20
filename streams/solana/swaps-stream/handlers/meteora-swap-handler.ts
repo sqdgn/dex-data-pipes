@@ -6,15 +6,15 @@ import {
   getPostTokenBalance,
   getPreTokenBalance,
   getTransactionHash,
-} from '../utils';
-import * as tokenProgram from '../contracts/token-program';
-import * as meteoraDlmm from '../contracts/meteora-dlmm';
-import * as meteoraDamm from '../contracts/meteora-damm';
-import { Instruction } from '../types';
+} from '../../utils';
+import * as tokenProgram from '../../contracts/token-program';
+import * as meteoraDlmm from '../../contracts/meteora-dlmm';
+import * as meteoraDamm from '../../contracts/meteora-damm';
+import { Instruction } from '../../types';
 import { getInstructionDescriptor } from '@subsquid/solana-stream';
 import { assert } from 'console';
-import { DecodedInstruction } from '../contracts/abi.support';
-import { SwapStreamInstructionHandler } from '../solana-swap-stream.types';
+import { DecodedInstruction } from '../../contracts/abi.support';
+import { SwapStreamInstructionHandler } from '../types';
 
 export const dlmmSwapInstructions = [
   meteoraDlmm.instructions.swap,

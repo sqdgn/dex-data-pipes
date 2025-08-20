@@ -1,23 +1,19 @@
 import { PortalAbstractStream } from '@sqd-pipes/core';
-import { getTransaction, getTransactionAccount, getTransactionHash, timeIt } from './utils';
-import * as meteoraDamm from './contracts/meteora-damm';
-import * as meteoraDlmm from './contracts/meteora-dlmm';
-import * as whirlpool from './contracts/orca-whirlpool';
-import * as raydiumClmm from './contracts/raydium-clmm';
-import * as raydiumAmm from './contracts/raydium-cpmm';
-import * as raydiumLaunchLab from './contracts/raydium-launchlab';
-import * as metaplex from './contracts/metaplex';
-import * as token from './contracts/token-program';
-import * as token2022 from './contracts/token-2022-program';
-import * as BPFLoaderUpgradeable from './contracts/bpf-loader-upgradeable';
+import { getTransaction, getTransactionAccount, getTransactionHash, timeIt } from '../utils';
+import * as meteoraDamm from '../contracts/meteora-damm';
+import * as meteoraDlmm from '../contracts/meteora-dlmm';
+import * as whirlpool from '../contracts/orca-whirlpool';
+import * as raydiumClmm from '../contracts/raydium-clmm';
+import * as raydiumAmm from '../contracts/raydium-cpmm';
+import * as raydiumLaunchLab from '../contracts/raydium-launchlab';
+import * as metaplex from '../contracts/metaplex';
+import * as token from '../contracts/token-program';
+import * as token2022 from '../contracts/token-2022-program';
+import * as BPFLoaderUpgradeable from '../contracts/bpf-loader-upgradeable';
 import * as handlers from './handlers';
-import { SolanaSwap, SolanaSwapCore, SwapType } from './types';
-import { MetadataStorage } from '../storage/metadata-storage';
-import {
-  SwapStreamBlock,
-  swapStreamFieldsSelection,
-  SwapStreamInstruction,
-} from './solana-swap-stream.types';
+import { SolanaSwap, SolanaSwapCore, SwapType } from '../types';
+import { MetadataStorage } from './storage/metadata-storage';
+import { SwapStreamBlock, swapStreamFieldsSelection, SwapStreamInstruction } from './types';
 
 type Args = {
   // Path to a database where tokens metadata will be saved

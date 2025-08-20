@@ -3,9 +3,9 @@ import { ClickhouseState } from '@sqd-pipes/core';
 import { createClickhouseClient, ensureTables, toUnixTime } from '../../clickhouse';
 import { chRetry, createLogger } from '../../utils';
 import { getConfig } from './config';
-import { SolanaSwapsStream } from '../../../streams/svm_swaps';
-import { PriceExtendStream } from '../../../streams/svm_swaps/price-extend-stream';
-import { asDecimalString, timeIt } from '../../../streams/svm_swaps/utils';
+import { SolanaSwapsStream } from '../../../streams/solana/swaps-stream';
+import { PriceExtendStream } from '../../../streams/solana/price-extend-stream';
+import { asDecimalString, timeIt } from '../../../streams/solana/utils';
 
 const config = getConfig();
 

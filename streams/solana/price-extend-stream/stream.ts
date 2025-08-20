@@ -1,11 +1,11 @@
 import { ClickHouseClient } from '@clickhouse/client';
-import { getPrice, QUOTE_TOKENS, sortTokenPair, timeIt, USD_STABLECOINS } from './utils';
-import { SolanaSwap, SwappedTokenData } from './types';
-import { chRetry, createLogger } from '../../pipes/utils';
+import { getPrice, QUOTE_TOKENS, sortTokenPair, timeIt, USD_STABLECOINS } from '../utils';
+import { SolanaSwap, SwappedTokenData } from '../types';
+import { chRetry, createLogger } from '../../../pipes/utils';
 import _ from 'lodash';
-import { DbSwap, ExitSummary, TokenPositions } from './util/TokenPositions';
+import { DbSwap, ExitSummary, TokenPositions } from '../util/TokenPositions';
 import { Logger } from 'pino';
-import { AccountsPositionsCache } from './util/AccountPositionsCache';
+import { AccountsPositionsCache } from '../util/AccountPositionsCache';
 
 export type TokenPriceData = {
   poolAddress: string;

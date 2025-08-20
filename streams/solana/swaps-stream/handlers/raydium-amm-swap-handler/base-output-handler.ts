@@ -1,6 +1,6 @@
-import { getInstructionBalances, getPreTokenBalance } from '../../utils';
+import { getInstructionBalances, getPreTokenBalance } from '../../../utils';
 import { RaydiumCpmmSwapBaseHandler } from './base-swap-handler';
-import { Block, Instruction, SolanaSwapCore } from '../../types';
+import { Block, Instruction, SolanaSwapCore } from '../../../types';
 
 export class RaydiumCpmmSwapBaseOutputHandler extends RaydiumCpmmSwapBaseHandler {
   constructor(instruction: Instruction, block: Block) {

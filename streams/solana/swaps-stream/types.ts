@@ -1,6 +1,6 @@
 import { Logger } from 'pino';
-import { MetadataStorage } from '../storage/metadata-storage';
-import { InstructionHandler, PartialBlock, PartialInstruction, SolanaSwapCore } from './types';
+import { MetadataStorage } from './storage/metadata-storage';
+import { InstructionHandler, PartialBlock, PartialInstruction, SolanaSwapCore } from '../types';
 
 export const swapStreamFieldsSelection = {
   block: {

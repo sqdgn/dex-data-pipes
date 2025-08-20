@@ -1,6 +1,6 @@
 import assert from 'node:assert';
-import * as tokenProgram from '../contracts/token-program';
-import * as whirlpool from '../contracts/orca-whirlpool';
+import * as tokenProgram from '../../contracts/token-program';
+import * as whirlpool from '../../contracts/orca-whirlpool';
 import {
   getInnerTransfersByLevel,
   getInstructionBalances,
@@ -9,12 +9,12 @@ import {
   sqrtPriceX64ToPrice,
   getTokenReserves,
   getTransactionHash,
-} from '../utils';
+} from '../../utils';
 import { PostTokenBalance } from '@subsquid/solana-normalization';
 import { getInstructionDescriptor } from '@subsquid/solana-stream';
-import type { Traded } from '../contracts/orca-whirlpool/types';
-import { Block, Instruction } from '../types';
-import { SwapStreamInstructionHandler } from '../solana-swap-stream.types';
+import type { Traded } from '../../contracts/orca-whirlpool/types';
+import { Block, Instruction } from '../../types';
+import { SwapStreamInstructionHandler } from '../types';
 
 export const whirlpoolSwapHandler: SwapStreamInstructionHandler = {
   check: ({ ins }) =>

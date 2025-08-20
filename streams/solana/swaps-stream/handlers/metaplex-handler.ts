@@ -1,7 +1,7 @@
-import * as metaplex from '../contracts/metaplex';
-import { SwapStreamInstructionHandler } from '../solana-swap-stream.types';
-import { Instruction, SolanaTokenMetadata, SolanaTokenMetadataUpdate } from '../types';
-import { getInstructionD1 } from '../utils';
+import * as metaplex from '../../contracts/metaplex';
+import { SwapStreamInstructionHandler } from '../types';
+import { Instruction, SolanaTokenMetadata, SolanaTokenMetadataUpdate } from '../../types';
+import { getInstructionD1 } from '../../utils';
 
 export const createMetadataInstructions = [
   metaplex.instructions.createMetadataAccount,

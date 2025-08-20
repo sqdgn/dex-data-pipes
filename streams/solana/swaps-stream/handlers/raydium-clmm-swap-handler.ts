@@ -6,11 +6,11 @@ import {
   getPostTokenBalance,
   getPreTokenBalance,
   sqrtPriceX64ToPrice,
-} from '../utils';
-import * as raydiumClmm from '../contracts/raydium-clmm';
-import type { SwapEvent } from '../contracts/raydium-clmm/types';
-import { Block, Instruction } from '../types';
-import { SwapStreamInstructionHandler } from '../solana-swap-stream.types';
+} from '../../utils';
+import * as raydiumClmm from '../../contracts/raydium-clmm';
+import type { SwapEvent } from '../../contracts/raydium-clmm/types';
+import { Block, Instruction } from '../../types';
+import { SwapStreamInstructionHandler } from '../types';
 
 export const raydiumClmmSwapInstructions = [
   raydiumClmm.instructions.swap,

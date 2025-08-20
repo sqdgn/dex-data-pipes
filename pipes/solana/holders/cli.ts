@@ -3,8 +3,8 @@ import { ClickhouseState } from '@sqd-pipes/core';
 import { createClickhouseClient, ensureTables } from '../../clickhouse';
 import { createLogger } from '../../utils';
 import { getConfig } from './config';
-import { SolanaHoldersStream } from '../../../streams/svm_swaps/holders-stream';
-import { timeIt } from '../../../streams/svm_swaps/utils';
+import { SolanaHoldersStream } from '../../../streams/solana/holders-stream';
+import { timeIt } from '../../../streams/solana/utils';
 
 const config = getConfig();
 

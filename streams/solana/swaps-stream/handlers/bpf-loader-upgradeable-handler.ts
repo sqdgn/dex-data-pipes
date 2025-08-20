@@ -1,15 +1,15 @@
-import * as BPFLoaderUpgradeable from '../contracts/bpf-loader-upgradeable';
-import { SwapStreamInstructionHandler } from '../solana-swap-stream.types';
-import { getInstructionD4 } from '../utils';
-import * as meteoraDamm from '../contracts/meteora-damm';
-import * as meteoraDlmm from '../contracts/meteora-dlmm';
-import * as whirlpool from '../contracts/orca-whirlpool';
-import * as raydiumClmm from '../contracts/raydium-clmm';
-import * as raydiumAmm from '../contracts/raydium-cpmm';
-import * as raydiumLaunchlab from '../contracts/raydium-launchlab';
-import * as metaplex from '../contracts/metaplex';
-import * as token from '../contracts/token-program';
-import * as token2022 from '../contracts/token-2022-program';
+import * as BPFLoaderUpgradeable from '../../contracts/bpf-loader-upgradeable';
+import { SwapStreamInstructionHandler } from '../types';
+import { getInstructionD4 } from '../../utils';
+import * as meteoraDamm from '../../contracts/meteora-damm';
+import * as meteoraDlmm from '../../contracts/meteora-dlmm';
+import * as whirlpool from '../../contracts/orca-whirlpool';
+import * as raydiumClmm from '../../contracts/raydium-clmm';
+import * as raydiumAmm from '../../contracts/raydium-cpmm';
+import * as raydiumLaunchlab from '../../contracts/raydium-launchlab';
+import * as metaplex from '../../contracts/metaplex';
+import * as token from '../../contracts/token-program';
+import * as token2022 from '../../contracts/token-2022-program';
 
 const TRACKED_PROGRAMS = [
   meteoraDamm,

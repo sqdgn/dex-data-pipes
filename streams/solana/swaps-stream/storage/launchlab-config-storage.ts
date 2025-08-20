@@ -1,6 +1,6 @@
 import _ from 'lodash';
 import { DatabaseSync, StatementSync } from 'node:sqlite';
-import { LaunchLabConfig } from '../svm_swaps/types';
+import { LaunchLabConfig } from '../../types';
 
 export class LaunchLabConfigStorage {
   private statements: Record<string, StatementSync>;

@@ -1,7 +1,7 @@
-import * as token from '../contracts/token-program';
-import * as token2022 from '../contracts/token-2022-program';
-import { Block, Instruction, SolanaTokenMintData } from '../types';
-import { getInstructionD1, getTransactionHash } from '../utils';
+import * as token from '../../contracts/token-program';
+import * as token2022 from '../../contracts/token-2022-program';
+import { Block, Instruction, SolanaTokenMintData } from '../../types';
+import { getInstructionD1, getTransactionHash } from '../../utils';
 
 export const isInitializeMintInstruction = (ins: Instruction): boolean => {
   const desc = getInstructionD1(ins);

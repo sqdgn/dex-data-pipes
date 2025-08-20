@@ -5,8 +5,8 @@ import {
   SolanaTokenMetadata,
   SolanaTokenMetadataUpdate,
   SolanaTokenMintData,
-} from '../svm_swaps/types';
-import { TOKENS } from '../svm_swaps/utils';
+} from '../../types';
+import { TOKENS } from '../../utils';
 import Decimal from 'decimal.js';
 
 const KNOWN_TOKENS = new Map([
