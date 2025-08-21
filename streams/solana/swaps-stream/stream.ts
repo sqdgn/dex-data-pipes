@@ -61,6 +61,14 @@ export class SolanaSwapsStream extends PortalAbstractStream<SolanaSwap, Args> {
     // Metadata handlers
     for (const handler of metadataHandlers) {
       if (handler.check({ ins, block })) {
+        if (block.header.number <= this.storage.lastProcessedBlock) {
+          // Avoid processing the same blocks twice in case SQLite state is
+          // ahead of Clickhouse state
+          this.logger.warn(
+            `Metadata from block ${block.header.number} already processed, skipping...`,
+          );
+          continue;
+        }
         handler.run({ ins, block, context });
         return null;
       }
