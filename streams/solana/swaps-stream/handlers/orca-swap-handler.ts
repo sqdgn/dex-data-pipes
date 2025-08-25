@@ -9,19 +9,27 @@ import {
   sqrtPriceX64ToPrice,
   getTokenReserves,
   getTransactionHash,
+  createGetProgramVersionFunc,
 } from '../../utils';
 import { PostTokenBalance } from '@subsquid/solana-normalization';
 import { getInstructionDescriptor } from '@subsquid/solana-stream';
-import type { Traded } from '../../contracts/orca-whirlpool/types';
+import type { Traded } from '../../contracts/orca-whirlpool/v1/types';
 import { Block, Instruction } from '../../types';
 import { SwapStreamInstructionHandler } from '../types';
+
+const getVersion = createGetProgramVersionFunc<whirlpool.Version>(
+  whirlpool.VERSIONS,
+  'Orca Whirlpool',
+);
 
 export const whirlpoolSwapHandler: SwapStreamInstructionHandler = {
   check: ({ ins }) =>
     ins.programId === whirlpool.programId &&
-    whirlpool.instructions.swap.d8 === getInstructionDescriptor(ins),
+    // Swap instruction is the same in v1 and v2
+    whirlpool.v1.instructions.swap.d8 === getInstructionDescriptor(ins),
   run: ({ ins, block }) => {
-    const swapEvent = getSwapEvent(ins, block);
+    const version = getVersion(ins, block);
+    const swapEvent = getSwapEvent(ins, block, version);
     const [
       {
         accounts: { destination: tokenInAccount, authority },
@@ -46,7 +54,7 @@ export const whirlpoolSwapHandler: SwapStreamInstructionHandler = {
         ? getSlippage(tokenIn, tokenOut, inputTokenAmount, outputTokenAmount, swapEvent, swapPrice)
         : null;
 
-    const { whirlpool: poolAddress, tokenVaultA, tokenVaultB } = getPoolAccounts(ins);
+    const { whirlpool: poolAddress, tokenVaultA, tokenVaultB } = getPoolAccounts(ins, version);
 
     const reserves = getTokenReserves(ins, block, [tokenVaultA, tokenVaultB]);
     const reserveIn = reserves[tokenIn.postMint];
@@ -112,22 +120,23 @@ function getSlippage(
   return slippage;
 }
 
-function getSwapEvent(ins: Instruction, block: Block): Traded | null {
+function getSwapEvent(ins: Instruction, block: Block, version?: whirlpool.Version): Traded | null {
+  version = version || getVersion(ins, block);
   const logs = getInstructionLogs(ins, block);
   if (logs.length > 1) {
     const hex = Buffer.from(logs[1].message, 'base64').toString('hex');
     // FIXME: Decoding fails on some blocks earlier than 345246630 in some cases, investigate why
-    return whirlpool.events.Traded.decode({ msg: `0x${hex}` });
+    return whirlpool[version].events.Traded.decode({ msg: `0x${hex}` });
   }
 
   return null;
 }
 
-function getPoolAccounts(ins: Instruction) {
+function getPoolAccounts(ins: Instruction, version: whirlpool.Version) {
   const descriptor = getInstructionDescriptor(ins);
-  if (descriptor === whirlpool.instructions.swap.d8) {
-    return whirlpool.instructions.swap.decode(ins).accounts;
+  if (descriptor === whirlpool[version].instructions.swap.d8) {
+    return whirlpool[version].instructions.swap.decode(ins).accounts;
   }
 
-  return whirlpool.instructions.swapV2.decode(ins).accounts;
+  return whirlpool[version].instructions.swapV2.decode(ins).accounts;
 }

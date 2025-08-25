@@ -3,6 +3,7 @@ import Decimal from 'decimal.js';
 import { DATA_SYM, getInstructionDescriptor } from '@subsquid/solana-stream';
 import * as raydiumLaunchLab from '../../contracts/raydium-launchlab';
 import {
+  createGetProgramVersionFunc,
   getDecimals,
   getDecodedInnerTransfers,
   getInnerInstructions,
@@ -17,20 +18,10 @@ import { SwapStreamInstructionHandler } from '../types';
 
 export const DEX_NAME = 'Raydium LaunchLab';
 
-function getVersion(ins: Instruction, block: Block): raydiumLaunchLab.Version {
-  // Return first version (when in DESC order) which starts from eariler block/tx than the current one
-  const versions = raydiumLaunchLab.VERSIONS;
-  for (let i = versions.length - 1; i >= 0; --i) {
-    const version = versions[i];
-    if (
-      version.fromBlock < block.header.number ||
-      (version.fromBlock === block.header.number && version.fromTxIdx < ins.transactionIndex)
-    ) {
-      return version.name;
-    }
-  }
-  throw new Error(`Cannot find matching Radyium Launchlab version at block ${block.header.number}`);
-}
+const getVersion = createGetProgramVersionFunc<raydiumLaunchLab.Version>(
+  raydiumLaunchLab.VERSIONS,
+  'Raydium LaunchLab',
+);
 
 export function decodeSwapInstruction(ins: Instruction) {
   const d8 = getInstructionDescriptor(ins);

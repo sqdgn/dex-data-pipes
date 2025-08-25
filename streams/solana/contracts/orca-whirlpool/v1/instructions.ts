@@ -1,5 +1,5 @@
 import { struct, address, u16, u128, i32, u8, u64, unit, bool, option } from '@subsquid/borsh';
-import { instruction } from '../abi.support';
+import { instruction } from '../../abi.support';
 import {
   WhirlpoolBumps,
   OpenPositionBumps,

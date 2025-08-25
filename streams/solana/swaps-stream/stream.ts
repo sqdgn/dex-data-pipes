@@ -257,7 +257,7 @@ export class SolanaSwapsStream extends PortalAbstractStream<SolanaSwap, Args> {
                 case 'orca_whirlpool':
                   return {
                     programId: [whirlpool.programId],
-                    d8: [whirlpool.instructions.swap.d8],
+                    d8: [whirlpool.v1.instructions.swap.d8],
                     isCommitted: true,
                     innerInstructions: true,
                     transaction: true,

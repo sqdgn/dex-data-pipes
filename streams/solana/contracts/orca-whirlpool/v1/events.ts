@@ -1,4 +1,4 @@
-import { event } from '../abi.support';
+import { event } from '../../abi.support';
 import {
   LiquidityDecreased as LiquidityDecreased_,
   LiquidityIncreased as LiquidityIncreased_,

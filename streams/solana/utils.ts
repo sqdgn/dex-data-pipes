@@ -4,7 +4,14 @@ import { getInstructionData } from '@subsquid/solana-stream';
 import type * as PortalData from '@subsquid/solana-normalization';
 import { toHex } from '@subsquid/util-internal-hex';
 import { PublicKey } from '@solana/web3.js';
-import { Block, DecodedTransfer, Instruction, InstructionContext, SwappedTokenData } from './types';
+import {
+  Block,
+  DecodedTransfer,
+  Instruction,
+  InstructionContext,
+  ProgramVersion,
+  SwappedTokenData,
+} from './types';
 import * as tokenProgram from './contracts/token-program';
 import * as token2022Program from './contracts/token-2022-program';
 import { Logger } from 'pino';
@@ -464,5 +471,24 @@ export function getInstructionContext(ins: Instruction, block: Block): Instructi
       index: ins.transactionIndex,
     },
     timestamp: new Date(block.header.timestamp * 1000),
+  };
+}
+
+export function createGetProgramVersionFunc<T extends string>(
+  versions: ProgramVersion<T>[],
+  name: string,
+) {
+  return function (ins: Instruction, block: Block) {
+    // Return first version (when in DESC order) which starts from eariler block/tx than the current one
+    for (let i = versions.length - 1; i >= 0; --i) {
+      const version = versions[i];
+      if (
+        version.fromBlock < block.header.number ||
+        (version.fromBlock === block.header.number && version.fromTxIdx < ins.transactionIndex)
+      ) {
+        return version.name;
+      }
+    }
+    throw new Error(`Cannot find matching ${name} version at block ${block.header.number}`);
   };
 }
