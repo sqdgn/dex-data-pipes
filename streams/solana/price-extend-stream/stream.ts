@@ -173,10 +173,11 @@ export class PriceExtendStream {
   }
 
   private loadTokenPosition(swap: DbSwap) {
+    // We only handle tokenA positions for now
     const positionsA = this.accountPositions.getOrCreateTokenPositions(swap.account, swap.token_a);
-    const positionsB = this.accountPositions.getOrCreateTokenPositions(swap.account, swap.token_b);
+    // const positionsB = this.accountPositions.getOrCreateTokenPositions(swap.account, swap.token_b);
     positionsA.load(swap, swap.token_a);
-    positionsB.load(swap, swap.token_b);
+    // positionsB.load(swap, swap.token_b);
   }
 
   // Convert SwappedTokenData to a ExtendedSwappedTokenData
