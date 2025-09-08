@@ -37,7 +37,7 @@ export const upgradeHandler: SwapStreamInstructionHandler = {
         (u) => u.fromBlock === block.header.number && u.fromTxIdx === ins.transactionIndex,
       );
       if (!knownUpgrade) {
-        throw new Error(
+        logger.warn(
           `Program ${program.programId} has been upgraded at ` +
             `block=${block.header.number}, ` +
             `txIdx=${ins.transactionIndex} ` +
