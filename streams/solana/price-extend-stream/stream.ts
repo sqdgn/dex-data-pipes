@@ -76,7 +76,8 @@ export class PriceExtendStream {
     );
   }
 
-  private async *refetchTokenPrices() {
+  private async *refetchTokenPrices(bestPoolMaxDate: Date) {
+    const bestPoolTimeInterval = 14 * 24 * 60 * 60 * 1000; // 2 weeks
     // Get latest prices for each token, based on best 14d pool chosen from
     // `tokens_with_best_quote_pools` (if exist) or ANY quote pool otherwise.
     const result = await chRetry(
@@ -85,16 +86,22 @@ export class PriceExtendStream {
           query: `
             SELECT
               token,
-              argMaxMerge(best_pool_address) AS best_pool_address,
-              argMaxMerge(pool_address)      AS pool_address,
-              argMaxMerge(price_usdc)        AS price_usdc
-            FROM tokens_with_last_prices_from_14d_best_pool
-            GROUP BY token
-          `,
+              pool_address,
+              best_pool_address,
+              price_usdc
+          FROM tokens_with_last_best_pool_prices(
+            min_timestamp={minTimestamp:DateTime},
+            max_timestamp={maxTimestamp:DateTime}
+          )
+      `,
+          query_params: {
+            minTimestamp: new Date(bestPoolMaxDate.getTime() - bestPoolTimeInterval),
+            maxTimestamp: bestPoolMaxDate,
+          },
           format: 'JSONEachRow',
         }),
       {
-        desc: `Fetch last token prices from best pool in the last 14d`,
+        desc: `Fetch token prices (best pool max date: ${bestPoolMaxDate.toISOString()})`,
         logger: this.logger,
       },
     );
@@ -107,7 +114,7 @@ export class PriceExtendStream {
   }
 
   private async reloadTokenPrices(bestPoolMaxDate: Date) {
-    for await (const row of this.refetchTokenPrices()) {
+    for await (const row of this.refetchTokenPrices(bestPoolMaxDate)) {
       this.tokenPrices.set(row.token, {
         isBestPricingPoolSelected: row.best_pool_address === row.pool_address,
         poolAddress: row.pool_address,
