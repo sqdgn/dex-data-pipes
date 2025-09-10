@@ -1,9 +1,5 @@
 import { ClickhouseState } from '@sqd-pipes/core';
-import {
-  createClickhouseClient,
-  ensureTables,
-  toUnixTime,
-} from '../../clickhouse';
+import { createClickhouseClient, ensureTables, toUnixTime } from '../../clickhouse';
 import { createLogger } from '../../utils';
 import { getConfig } from '../config';
 import { SolanaSwapsStream } from '../../../streams/svm_swaps';
@@ -24,12 +20,7 @@ async function main() {
     //   level: ClickHouseLogLevel.TRACE,
     // },
   });
-  await ensureTables(
-    clickhouse,
-    __dirname,
-    undefined,
-    process.env.CLICKHOUSE_DB || 'default'
-  );
+  await ensureTables(clickhouse, __dirname, undefined, process.env.CLICKHOUSE_DB || 'default');
 
   const ds = new SolanaSwapsStream({
     portal: config.portalUrl,
@@ -61,9 +52,7 @@ async function main() {
   ds.initialize();
 
   const stream = await ds.stream();
-  for await (const swaps of stream.pipeThrough(
-    await new PriceExtendStream(clickhouse).pipe()
-  )) {
+  for await (const swaps of stream.pipeThrough(await new PriceExtendStream(clickhouse).pipe())) {
     await timeIt(
       logger,
       `Inserting swaps to Clickhouse`,
@@ -72,7 +61,7 @@ async function main() {
         const maxAttempts = 3;
         while (true) {
           logger.debug(
-            `Trying to insert ${swaps.length} to Clickhouse (attempt ${attempt}/${maxAttempts})`
+            `Trying to insert ${swaps.length} to Clickhouse (attempt ${attempt}/${maxAttempts})`,
           );
           try {
             await clickhouse.insert({
@@ -92,14 +81,8 @@ async function main() {
                   token_a: s.baseToken.mintAcc,
                   token_b: s.quoteToken.mintAcc,
                   // Amounts of the tokens exchanged
-                  amount_a: asDecimalString(
-                    s.baseToken.amount,
-                    s.baseToken.decimals
-                  ),
-                  amount_b: asDecimalString(
-                    s.quoteToken.amount,
-                    s.quoteToken.decimals
-                  ),
+                  amount_a: asDecimalString(s.baseToken.amount, s.baseToken.decimals),
+                  amount_b: asDecimalString(s.quoteToken.amount, s.quoteToken.decimals),
                   // Tokens metadata
                   token_a_creation_date: s.baseToken.createdAt
                     ? toUnixTime(new Date(s.baseToken.createdAt))
@@ -114,10 +97,8 @@ async function main() {
                   // Token prices
                   token_a_usdc_price: s.baseToken.priceData?.priceUsdc || 0,
                   token_b_usdc_price: s.quoteToken.priceData?.priceUsdc || 0,
-                  token_a_pricing_pool:
-                    s.baseToken.priceData?.poolAddress || '',
-                  token_b_pricing_pool:
-                    s.quoteToken.priceData?.poolAddress || '',
+                  token_a_pricing_pool: s.baseToken.priceData?.poolAddress || '',
+                  token_b_pricing_pool: s.quoteToken.priceData?.poolAddress || '',
                   token_a_best_pricing_pool_selected:
                     s.baseToken.priceData?.isBestPricingPoolSelected || false,
                   token_b_best_pricing_pool_selected:
@@ -125,14 +106,10 @@ async function main() {
                   // Trader stats
                   token_a_balance: s.baseToken.balance,
                   token_b_balance: s.quoteToken.balance,
-                  token_a_profit_usdc:
-                    s.baseToken.positionExitSummary?.profitUsdc || 0,
-                  token_b_profit_usdc:
-                    s.quoteToken.positionExitSummary?.profitUsdc || 0,
-                  token_a_cost_usdc:
-                    s.baseToken.positionExitSummary?.entryCostUsdc || 0,
-                  token_b_cost_usdc:
-                    s.quoteToken.positionExitSummary?.entryCostUsdc || 0,
+                  token_a_profit_usdc: s.baseToken.positionExitSummary?.profitUsdc || 0,
+                  token_b_profit_usdc: s.quoteToken.positionExitSummary?.profitUsdc || 0,
+                  token_a_cost_usdc: s.baseToken.positionExitSummary?.entryCostUsdc || 0,
+                  token_b_cost_usdc: s.quoteToken.positionExitSummary?.entryCostUsdc || 0,
                   token_a_wins: s.baseToken.wins,
                   token_b_wins: s.quoteToken.wins,
                   token_a_loses: s.baseToken.loses,
@@ -145,11 +122,11 @@ async function main() {
                   pool_address: s.poolAddress,
                   pool_token_a_reserve: asDecimalString(
                     s.baseToken.reserves || 0n,
-                    s.baseToken.decimals
+                    s.baseToken.decimals,
                   ),
                   pool_token_b_reserve: asDecimalString(
                     s.quoteToken.reserves || 0n,
-                    s.quoteToken.decimals
+                    s.quoteToken.decimals,
                   ),
                   sign: 1,
                 };
@@ -159,10 +136,7 @@ async function main() {
             });
             break;
           } catch (err) {
-            logger.error(
-              err,
-              `Error while trying to insert ${swaps.length} swaps to Clickhouse!`
-            );
+            logger.error(err, `Error while trying to insert ${swaps.length} swaps to Clickhouse!`);
 
             if (
               err instanceof Error &&
@@ -185,7 +159,7 @@ async function main() {
       },
       {
         numSwaps: swaps.length,
-      }
+      },
     );
   }
 }

@@ -10,17 +10,10 @@ import * as token2022Program from './contracts/token-2022-program';
 import { Logger } from 'pino';
 
 export function getInstructionBalances(ins: Instruction, block: Block) {
-  return (
-    block.tokenBalances?.filter(
-      (t: any) => t.transactionIndex === ins.transactionIndex
-    ) || []
-  );
+  return block.tokenBalances?.filter((t: any) => t.transactionIndex === ins.transactionIndex) || [];
 }
 
-export function getTokenBalance(
-  tokenBalances: Block['tokenBalances'],
-  addr: string
-) {
+export function getTokenBalance(tokenBalances: Block['tokenBalances'], addr: string) {
   const tokenBalance = tokenBalances.find((b) => b.account === addr);
   if (!tokenBalance) {
     throw new Error(`Could not find token balance for account: ${addr}.`);
@@ -30,7 +23,7 @@ export function getTokenBalance(
 
 export function getPreTokenBalance(
   tokenBalances: Block['tokenBalances'],
-  addr: string
+  addr: string,
 ): PortalData.PreTokenBalance {
   const tokenBalance = getTokenBalance(tokenBalances, addr);
   if (tokenBalance.preAmount === undefined) {
@@ -41,7 +34,7 @@ export function getPreTokenBalance(
 
 export function getPostTokenBalance(
   tokenBalances: Block['tokenBalances'],
-  addr: string
+  addr: string,
 ): PortalData.PostTokenBalance {
   const tokenBalance = getTokenBalance(tokenBalances, addr);
   if (tokenBalance.postAmount === undefined) {
@@ -50,12 +43,9 @@ export function getPostTokenBalance(
   return tokenBalance as PortalData.PostTokenBalance;
 }
 
-export function getNextInstruction(
-  instruction: Instruction,
-  instructions: Instruction[]
-) {
+export function getNextInstruction(instruction: Instruction, instructions: Instruction[]) {
   const index = instructions.findIndex(
-    (i) => i.instructionAddress === instruction.instructionAddress
+    (i) => i.instructionAddress === instruction.instructionAddress,
   );
   return instructions[index + 1];
 }
@@ -71,9 +61,7 @@ export function getTransactionAccount(ins: Instruction, block: Block) {
 }
 
 export function getTransaction(ins: Instruction, block: Block) {
-  const tx = block.transactions.find(
-    (t: any) => t.transactionIndex === ins.transactionIndex
-  );
+  const tx = block.transactions.find((t: any) => t.transactionIndex === ins.transactionIndex);
   assert(tx, 'transaction not found');
 
   return tx;
@@ -90,7 +78,7 @@ export function getTransaction(ins: Instruction, block: Block) {
 export function getInnerInstructions(
   parent: Instruction,
   instructions: Instruction[],
-  level?: number
+  level?: number,
 ) {
   const parentAddrLen = parent.instructionAddress.length;
   return instructions.filter((ins) => {
@@ -105,7 +93,7 @@ export function getInnerInstructions(
       // Instruction address begins with parent's instruction address
       _.isEqual(
         parent.instructionAddress,
-        ins.instructionAddress.slice(0, parent.instructionAddress.length)
+        ins.instructionAddress.slice(0, parent.instructionAddress.length),
       )
     );
   });
@@ -122,7 +110,7 @@ export function getInnerInstructions(
 export function getInnerTransfersByLevel(
   parent: Instruction,
   instructions: Instruction[],
-  level: number
+  level: number,
 ) {
   return getInnerInstructions(parent, instructions, level).filter((inner) => {
     const desc = getInstructionD1(inner);
@@ -148,10 +136,7 @@ export function getInstructionD1(instruction: Instruction) {
  * @param block
  * @returns
  */
-export function getDecodedInnerTransfers(
-  ins: Instruction,
-  block: Block
-): DecodedTransfer[] {
+export function getDecodedInnerTransfers(ins: Instruction, block: Block): DecodedTransfer[] {
   return getInnerTransfersByLevel(ins, block.instructions, 1).map((t) => {
     const programId = t.programId;
     const d1 = getInstructionD1(t);
@@ -187,11 +172,9 @@ export function getDecodedInnerTransfers(
 export function sqrtPriceX64ToPrice(
   sqrtPriceX64: bigint,
   tokenADecimals: number,
-  tokenBDecimals: number
+  tokenBDecimals: number,
 ): number {
-  const price =
-    (Number(sqrtPriceX64) / 2 ** 64) ** 2 *
-    10 ** (tokenADecimals - tokenBDecimals);
+  const price = (Number(sqrtPriceX64) / 2 ** 64) ** 2 * 10 ** (tokenADecimals - tokenBDecimals);
   return Number(price);
 }
 
@@ -201,10 +184,7 @@ export function sqrtPriceX64ToPrice(
  * @param accountB
  * @returns
  */
-export function sortAccounts(
-  accountA: string,
-  accountB: string
-): [string, string] {
+export function sortAccounts(accountA: string, accountB: string): [string, string] {
   const aBytes = new PublicKey(accountA).toBytes();
   const bBytes = new PublicKey(accountB).toBytes();
 
@@ -232,7 +212,7 @@ export function getInstructionLogs(ins: Instruction, block: Block) {
       (log) =>
         log.transactionIndex === ins.transactionIndex &&
         log.instructionAddress.length === ins.instructionAddress.length &&
-        log.instructionAddress.every((v, i) => v === ins.instructionAddress[i])
+        log.instructionAddress.every((v, i) => v === ins.instructionAddress[i]),
     ) || []
   );
 }
@@ -279,10 +259,7 @@ function getQuoteTokenRank(tokenAcc: string) {
  * @param token2 Second token to sort
  * @returns A tuple containing the sorted token pair
  */
-export function sortTokenPair<T extends { mintAcc: string }>(
-  token1: T,
-  token2: T
-): [T, T] {
+export function sortTokenPair<T extends { mintAcc: string }>(token1: T, token2: T): [T, T] {
   const rank1 = getQuoteTokenRank(token1.mintAcc);
   const rank2 = getQuoteTokenRank(token2.mintAcc);
   const switchTokens =
@@ -324,7 +301,7 @@ export function getPrice(tokenA: SwappedTokenData, tokenB: SwappedTokenData) {
 export function getTokenReserves(
   ins: Instruction,
   block: Block,
-  vaultAccounts: string[]
+  vaultAccounts: string[],
 ): Record<string, bigint> {
   const tokenBalances = getInstructionBalances(ins, block);
   const reserves: Record<string, bigint> = {};
@@ -358,7 +335,7 @@ export function timeIt<T>(
   logger: Logger,
   label: string,
   fn: () => T,
-  context?: Record<string, unknown>
+  context?: Record<string, unknown>,
 ): T {
   const start = performance.now();
   const logTime = () => {
@@ -372,12 +349,15 @@ export function timeIt<T>(
         `min=${_.min(times)?.toFixed(2)}, ` +
         `max=${_.max(times)?.toFixed(2)}, ` +
         `avg=${_.mean(times).toFixed(2)})` +
-        (context ? ` ${JSON.stringify(context)}` : '')
+        (context ? ` ${JSON.stringify(context)}` : ''),
     );
   };
   const r = fn();
   if (r instanceof Promise) {
-    return r.then(logTime) as T;
+    return r.then((r) => {
+      logTime();
+      return r;
+    }) as T;
   }
   logTime();
   return r;
