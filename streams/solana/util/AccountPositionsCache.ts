@@ -91,7 +91,7 @@ export class AccountsPositionsCache {
       `Dumping accounts positions cache at block ${blockNumber} to ${this.dumpPath}...`,
     );
     timeIt(this.logger, 'Dumping accounts positions cache to file', () => {
-      const fp = fs.openSync(this.dumpPath, 'w');
+      const fp = fs.openSync(`${this.dumpPath}.tmp`, 'w');
       fs.writeFileSync(fp, `${this.__version}:${blockNumber}\n`);
       for (const [account, tokenPositions] of this.accountPositions.entries()) {
         fs.writeFileSync(fp, `${indent(1)}${account}\n`);
@@ -103,6 +103,7 @@ export class AccountsPositionsCache {
         }
       }
       fs.closeSync(fp);
+      fs.renameSync(`${this.dumpPath}.tmp`, this.dumpPath);
       this._lastDumpBlock = blockNumber;
     });
   }
