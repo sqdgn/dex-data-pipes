@@ -196,6 +196,45 @@ FROM swaps_raw_pool_gr s
 WHERE price_token_a_usdc > 0
 GROUP BY pool_address, token, timestamp;
 
+
+CREATE TABLE IF NOT EXISTS vols_candles_1usd (
+    timestamp                DateTime CODEC (DoubleDelta, ZSTD),
+    pool_address            String,
+    token                   String,
+    volume_usdc             AggregateFunction(sum, Float64),
+    swap_count              AggregateFunction(sum, Int32),
+    buy_count               AggregateFunction(sum, Int32),
+    sell_count              AggregateFunction(sum, Int32),
+    buy_volume_usdc         AggregateFunction(sum, Float64),
+    sell_volume_usdc        AggregateFunction(sum, Float64),
+    open_price_token_usdc   AggregateFunction(argMinState, Float64, Tuple(DateTime, UInt16, UInt16)),
+    high_price_token_usdc   AggregateFunction(max, Float64),
+    low_price_token_usdc    AggregateFunction(min, Float64),
+    close_price_token_usdc  AggregateFunction(argMaxState, Float64, Tuple(DateTime, UInt16, UInt16))
+)
+ENGINE = AggregatingMergeTree() ORDER BY (pool_address, timestamp);
+
+CREATE MATERIALIZED VIEW IF NOT EXISTS vols_candles_1usd_mv TO vols_candles_1usd
+AS
+SELECT
+    toStartOfMinute(s.timestamp) AS timestamp,
+    pool_address,
+    token_a AS token,
+    sumState(ABS(amount_b * price_token_b_usdc) * sign) AS volume_usdc,
+    sumState(toInt32(sign)) AS swap_count,
+    sumState(if(amount_a_raw < 0, toInt32(sign), 0)) AS buy_count,
+    sumState(if(amount_a_raw > 0, toInt32(sign), 0)) AS sell_count,
+    sumState(if(amount_a_raw < 0, ABS(amount_a * price_token_a_usdc) * sign, 0)) AS buy_volume_usdc,
+    sumState(if(amount_a_raw > 0, ABS(amount_a * price_token_a_usdc) * sign, 0)) AS sell_volume_usdc,
+    argMinState(price_token_a_usdc, tuple(s.timestamp, s.transaction_index, s.log_index)) AS open_price_token_usdc,
+    maxState(price_token_a_usdc) AS high_price_token_usdc,
+    minState(price_token_a_usdc) AS low_price_token_usdc,
+    argMaxState(price_token_a_usdc, tuple(s.timestamp, s.transaction_index, s.log_index)) AS close_price_token_usdc
+FROM swaps_raw_pool_gr s
+WHERE price_token_a_usdc > 0 AND ABS(amount_a * price_token_a_usdc) >= 1
+GROUP BY pool_address, token, timestamp;
+
+
 /*
 
 
