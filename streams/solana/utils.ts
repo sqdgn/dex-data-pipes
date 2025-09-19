@@ -113,8 +113,8 @@ export function getTokenInfoFromTransfer(
   for (const balance of tokenBalances) {
     const mint = isPostBalance(balance) ? balance.postMint : balance.preMint;
     const decimals = isPostBalance(balance) ? balance.postDecimals : balance.preDecimals;
-    assert(mint);
-    assert(decimals);
+    assert(mint !== undefined && mint !== null);
+    assert(decimals !== undefined && decimals !== null);
     const foundTokenInfo = { mint, decimals };
     if (tokenInfo !== null && !_.isEqual(foundTokenInfo, tokenInfo)) {
       throw new Error(
