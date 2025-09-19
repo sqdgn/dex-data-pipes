@@ -23,11 +23,14 @@ export type PartialBlock<Selection extends FieldSelection> = {
   tokenBalances: WithPickedFields<Selection, 'tokenBalance', PortalData.TokenBalance>[];
 };
 
-export interface TokenAmount {
-  amount: bigint;
+export type BasicTokenInfo = {
   mint: string;
   decimals: number;
-}
+};
+
+export type TokenAmount = BasicTokenInfo & {
+  amount: bigint;
+};
 
 // Block / Instruction representation compatible with different utility functions
 export type Block = PartialBlock<{

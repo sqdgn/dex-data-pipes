@@ -1,19 +1,15 @@
 import {
-  getInnerInstructions,
-  getInnerTransfersByLevel,
+  getDecodedInnerTransfers,
   getInstructionBalances,
-  getInstructionD1,
-  getPostTokenBalance,
   getPreTokenBalance,
+  getTokenInfoFromTransfer,
   getTransactionHash,
 } from '../../utils';
-import * as tokenProgram from '../../contracts/token-program';
 import * as meteoraDlmm from '../../contracts/meteora-dlmm';
 import * as meteoraDamm from '../../contracts/meteora-damm';
-import { Instruction } from '../../types';
+import { DecodedTransfer, Instruction } from '../../types';
 import { getInstructionDescriptor } from '@subsquid/solana-stream';
-import { assert } from 'console';
-import { DecodedInstruction } from '../../contracts/abi.support';
+import assert from 'node:assert';
 import { SwapStreamInstructionHandler } from '../types';
 
 export const dlmmSwapInstructions = [
@@ -41,31 +37,35 @@ function decodeMeteoraDammSwapIns(ins: Instruction) {
   }
 }
 
-function validateAccounts(
-  srcTransfer: DecodedInstruction<{ source: string; destination: string }, unknown>,
-  destTransfer: DecodedInstruction<{ source: string; destination: string }, unknown>,
-  userIn: string,
-  userOut: string,
-  reserveIn: string,
-  reserveOut: string,
-  txHash: string,
-) {
-  assert(
-    srcTransfer.accounts.source === userIn,
-    `Invalid Meteora DLMM input account. Tx: ${txHash}`,
+function findInputTransfer(
+  transfers: DecodedTransfer[],
+  userInAccount: string,
+  // Pass an array if there is more than 1 possible inTokenVault
+  inTokenVault: string | string[],
+): DecodedTransfer {
+  const possibleInTokenVaults = Array.isArray(inTokenVault) ? inTokenVault : [inTokenVault];
+  const candidates = transfers.filter(
+    (t) =>
+      t.accounts.source === userInAccount && possibleInTokenVaults.includes(t.accounts.destination),
   );
-  assert(
-    destTransfer.accounts.destination === userOut,
-    `Invalid Meteora DLMM output account. Tx: ${txHash}`,
+  if (candidates.length !== 1) {
+    throw new Error(`Unexpected number of possible swap input transfers: ${candidates.length}`);
+  }
+  return candidates[0];
+}
+
+function findOutputTransfer(
+  transfers: DecodedTransfer[],
+  userOutAccount: string,
+  outTokenVault: string,
+): DecodedTransfer | null {
+  const candidates = transfers.filter(
+    (t) => t.accounts.source === outTokenVault && t.accounts.destination === userOutAccount,
   );
-  assert(
-    srcTransfer.accounts.destination === reserveIn,
-    `Invalid Meteora DLMM input reserve account. Tx: ${txHash}`,
-  );
-  assert(
-    destTransfer.accounts.source === reserveOut,
-    `Invalid Meteora DLMM output reserve account. Tx: ${txHash}`,
-  );
+  if (candidates.length > 1) {
+    throw new Error(`Unexpected number of possible swap output transfers: ${candidates.length}`);
+  }
+  return candidates[0] || null;
 }
 
 export const dammSwapHandler: SwapStreamInstructionHandler = {
@@ -73,69 +73,53 @@ export const dammSwapHandler: SwapStreamInstructionHandler = {
     ins.programId === meteoraDamm.programId &&
     meteoraDamm.instructions.swap.d8 === getInstructionDescriptor(ins),
   run: ({ ins, block, context: { logger } }) => {
-    /**
-     * Meteora DAMM has two transfers on the second level and also other tokenProgram instructions
-     */
-    const transfers = getInnerInstructions(ins, block.instructions)
-      .filter((inner) => {
-        return getInstructionD1(inner) === tokenProgram.instructions.transfer.d1;
-      })
-      .map((t) => {
-        return tokenProgram.instructions.transfer.decode(t);
-      });
+    const decodedIns = decodeMeteoraDammSwapIns(ins);
+    const { pool, userSourceToken, userDestinationToken, aTokenVault, bTokenVault } =
+      decodedIns.accounts;
+    const transfers = getDecodedInnerTransfers(ins, block, null);
+    const inputTransfer = findInputTransfer(transfers, userSourceToken, [aTokenVault, bTokenVault]);
+    const tokenAIsInput = inputTransfer.accounts.destination === aTokenVault;
+    const reserveInAcc = tokenAIsInput ? aTokenVault : bTokenVault;
+    const reserveOutAcc = tokenAIsInput ? bTokenVault : aTokenVault;
+    const outputTransfer = findOutputTransfer(transfers, userDestinationToken, reserveOutAcc);
 
-    // DAMM could have internal transfers, the last two transfers are final src and dest
-    const [src, dest] = transfers.slice(-2);
-    if (!src || !dest) {
-      logger.warn({
-        message: 'Meteora DAMM: src or dest not found',
-        tx: getTransactionHash(ins, block),
-        block_number: block.header.number,
-        src,
-        dest,
-      });
-
+    if (!outputTransfer) {
+      if (!decodedIns.data.minimumOutAmount) {
+        // Can sometimes be empty as evidenced by:
+        // 3es2ore2VRSbA1PmuJ4aSnkijovVm9pEAbFjsFyey4UUsr3K5ejTw3XGUsN9E2vVGEzcjN6vn2GYKdR8C2CcPLTx
+        logger.warn({ tx: getTransactionHash(ins, block) }, `Meteora DAMM: No output transfer`);
+      } else {
+        throw new Error(`Meteora DAMM: Missing output transfer`);
+      }
       return null;
     }
 
     const tokenBalances = getInstructionBalances(ins, block);
-    const tokenIn = getPostTokenBalance(tokenBalances, src.accounts.destination);
-    const tokenOut = getPostTokenBalance(tokenBalances, dest.accounts.source);
 
-    const { pool, userSourceToken, userDestinationToken, aTokenVault, bTokenVault } =
-      decodeMeteoraDammSwapIns(ins).accounts;
-
-    const tokenAIsInput = src.accounts.destination === aTokenVault;
-    const reserveInAcc = tokenAIsInput ? aTokenVault : bTokenVault;
-    const reserveOutAcc = tokenAIsInput ? bTokenVault : aTokenVault;
-
-    // Sanity checks
-    validateAccounts(
-      src,
-      dest,
-      userSourceToken,
-      userDestinationToken,
-      reserveInAcc,
-      reserveOutAcc,
-      getTransactionHash(ins, block),
-    );
+    const tokenInInfo = getTokenInfoFromTransfer(tokenBalances, inputTransfer);
+    const tokenOutInfo = getTokenInfoFromTransfer(tokenBalances, outputTransfer);
 
     const { preAmount: reserveInAmount } = getPreTokenBalance(tokenBalances, reserveInAcc);
     const { preAmount: reserveOutAmount } = getPreTokenBalance(tokenBalances, reserveOutAcc);
 
+    assert(
+      inputTransfer.accounts.authority,
+      'Meteora DAMM: Missing input transfer authority account',
+    );
+
     return {
       type: 'meteora_damm',
-      account: src.accounts.authority,
+      account: inputTransfer.accounts.authority,
       input: {
-        amount: src.data.amount,
-        mintAcc: tokenIn.postMint,
-        decimals: tokenIn.postDecimals,
+        amount: inputTransfer.data.amount,
+        mintAcc: tokenInInfo.mint,
+        decimals: tokenInInfo.decimals,
         reserves: reserveInAmount,
       },
       output: {
-        amount: dest.data.amount,
-        mintAcc: tokenOut.postMint,
-        decimals: tokenOut.postDecimals,
+        amount: outputTransfer.data.amount,
+        mintAcc: tokenOutInfo.mint,
+        decimals: tokenOutInfo.decimals,
         reserves: reserveOutAmount,
       },
       poolAddress: pool,
@@ -149,59 +133,65 @@ export const dlmmSwapHandler: SwapStreamInstructionHandler = {
     ins.programId === meteoraDlmm.programId &&
     dlmmSwapInstructions.map(({ d8 }) => d8).includes(getInstructionDescriptor(ins)),
   run: ({ ins, block }) => {
-    const transfers = getInnerTransfersByLevel(ins, block.instructions, 1).map((t) => {
-      return tokenProgram.instructions.transferChecked.decode(t);
-    });
-
-    // DLMM could have internal transfers, the last two transfers are final src and dest
-    // TODO if there are more than 2 transfers, is the first one fee?
-    // 2fsnqWFXfmPkNPMTe2BVrDgSEhgezDTtvXxedrDHJrrLXNWR7K2DpPZ13N2DppGrYmTpofAfToXzaqyBWiumJGZ4
-    const [src, dest] = transfers.slice(-2);
-    const tokenBalances = getInstructionBalances(ins, block);
-
-    const tokenIn = getPostTokenBalance(tokenBalances, src.accounts.destination);
-    const tokenOut = getPostTokenBalance(tokenBalances, dest.accounts.source);
-
+    const decodedIns = decodeMeteoraDlmmSwapIns(ins);
     const {
       lbPair: poolAddress,
       tokenXMint,
+      tokenYMint,
       reserveX,
       reserveY,
       userTokenIn,
       userTokenOut,
-    } = decodeMeteoraDlmmSwapIns(ins).accounts;
-
-    const tokenXIsInput = tokenIn.postMint === tokenXMint;
+    } = decodedIns.accounts;
+    const transfers = getDecodedInnerTransfers(ins, block);
+    const inputTransfer = findInputTransfer(transfers, userTokenIn, [reserveX, reserveY]);
+    const tokenXIsInput = inputTransfer.accounts.destination === reserveX;
     const reserveInAcc = tokenXIsInput ? reserveX : reserveY;
     const reserveOutAcc = tokenXIsInput ? reserveY : reserveX;
+    const tokenInMint = tokenXIsInput ? tokenXMint : tokenYMint;
+    const tokenOutMint = tokenXIsInput ? tokenYMint : tokenXMint;
+    const outputTransfer = findOutputTransfer(transfers, userTokenOut, reserveOutAcc);
 
-    // Sanity checks
-    validateAccounts(
-      src,
-      dest,
-      userTokenIn,
-      userTokenOut,
-      reserveInAcc,
-      reserveOutAcc,
-      getTransactionHash(ins, block),
-    );
+    if (!outputTransfer) {
+      // FIXME: Unclear whether it's possible
+      throw new Error(`Meteora DLMM: Missing output transfer`);
+    }
+
+    const tokenBalances = getInstructionBalances(ins, block);
+
+    const tokenInInfo = getTokenInfoFromTransfer(tokenBalances, inputTransfer);
+    const tokenOutInfo = getTokenInfoFromTransfer(tokenBalances, outputTransfer);
+
+    if (tokenInInfo.mint !== tokenInMint) {
+      throw new Error(
+        `Meteora DLMM: Inconsistent input token mint: ${tokenInInfo.mint} vs ${tokenInMint}`,
+      );
+    }
+
+    if (tokenOutInfo.mint !== tokenOutMint) {
+      throw new Error(
+        `Meteora DLMM: Inconsistent output token mint: ${tokenOutInfo.mint} vs ${tokenOutMint}`,
+      );
+    }
 
     const { preAmount: reserveInAmount } = getPreTokenBalance(tokenBalances, reserveInAcc);
     const { preAmount: reserveOutAmount } = getPreTokenBalance(tokenBalances, reserveOutAcc);
 
+    assert(inputTransfer.accounts.owner, 'Meteora DAMM: Missing input transfer owner account');
+
     return {
       type: 'meteora_dlmm',
-      account: src.accounts.owner,
+      account: inputTransfer.accounts.owner,
       input: {
-        amount: src.data.amount,
-        mintAcc: tokenIn.postMint,
-        decimals: tokenIn.postDecimals,
+        amount: inputTransfer.data.amount,
+        mintAcc: tokenInInfo.mint,
+        decimals: tokenInInfo.decimals,
         reserves: reserveInAmount,
       },
       output: {
-        amount: dest.data.amount,
-        mintAcc: tokenOut.postMint,
-        decimals: tokenOut.postDecimals,
+        amount: outputTransfer.data.amount,
+        mintAcc: tokenOutInfo.mint,
+        decimals: tokenOutInfo.decimals,
         reserves: reserveOutAmount,
       },
       poolAddress,

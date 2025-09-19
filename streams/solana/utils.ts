@@ -5,6 +5,7 @@ import type * as PortalData from '@subsquid/solana-normalization';
 import { toHex } from '@subsquid/util-internal-hex';
 import { PublicKey } from '@solana/web3.js';
 import {
+  BasicTokenInfo,
   Block,
   DecodedTransfer,
   Instruction,
@@ -38,6 +39,18 @@ export function normalizeTokenBalance(tokenBalance: Block['tokenBalances'][numbe
   return tokenBalance;
 }
 
+function isPreBalance(
+  balance: Block['tokenBalances'][number],
+): balance is PortalData.PreTokenBalance {
+  return !!balance.preMint;
+}
+
+function isPostBalance(
+  balance: Block['tokenBalances'][number],
+): balance is PortalData.PostTokenBalance {
+  return !!balance.postMint;
+}
+
 export function getTokenBalance(tokenBalances: Block['tokenBalances'], addr: string) {
   const tokenBalance = tokenBalances.find((b) => b.account === addr);
   if (!tokenBalance) {
@@ -51,10 +64,10 @@ export function getPreTokenBalance(
   addr: string,
 ): PortalData.PreTokenBalance {
   const tokenBalance = getTokenBalance(tokenBalances, addr);
-  if (tokenBalance.preAmount === undefined) {
+  if (!isPreBalance(tokenBalance)) {
     throw new Error(`Token balance is not a pre-balance: ${addr}.`);
   }
-  return tokenBalance as PortalData.PreTokenBalance;
+  return tokenBalance;
 }
 
 export function getPostTokenBalance(
@@ -62,18 +75,21 @@ export function getPostTokenBalance(
   addr: string,
 ): PortalData.PostTokenBalance {
   const tokenBalance = getTokenBalance(tokenBalances, addr);
-  if (tokenBalance.postAmount === undefined) {
+  if (!isPostBalance(tokenBalance)) {
     throw new Error(`Token balance is not a post-balance: ${addr}.`);
   }
-  return tokenBalance as PortalData.PostTokenBalance;
+  return tokenBalance;
 }
 
-export function getPrePostTokenBalance(tokenBalances: Block['tokenBalances'], addr: string) {
+export function getPrePostTokenBalance(
+  tokenBalances: Block['tokenBalances'],
+  addr: string,
+): PortalData.PrePostTokenBalance {
   const tokenBalance = getTokenBalance(tokenBalances, addr);
-  if (tokenBalance.preAmount === undefined || tokenBalance.postAmount === undefined) {
+  if (!isPreBalance(tokenBalance) || !isPostBalance(tokenBalance)) {
     throw new Error(`Token balance is not a pre-post-balance: ${addr}.`);
   }
-  return tokenBalance as PortalData.PrePostTokenBalance;
+  return tokenBalance;
 }
 
 export function getDecimals(tokenBalance: Block['tokenBalances'][number]): number {
@@ -82,6 +98,41 @@ export function getDecimals(tokenBalance: Block['tokenBalances'][number]): numbe
     throw new Error(`Cannot retrieve decimals from token balance`);
   }
   return decimals;
+}
+
+export function getTokenInfoFromTransfer(
+  txTokenBalances: Block['tokenBalances'],
+  transfer: DecodedTransfer,
+): BasicTokenInfo {
+  const tokenBalances = txTokenBalances.filter(
+    (b) => b.account === transfer.accounts.source || b.account === transfer.accounts.destination,
+  );
+  // Find token information and make sure it's consistent
+  // in all related tokenBalances
+  let tokenInfo: BasicTokenInfo | null = null;
+  for (const balance of tokenBalances) {
+    const mint = isPostBalance(balance) ? balance.postMint : balance.preMint;
+    const decimals = isPostBalance(balance) ? balance.postDecimals : balance.preDecimals;
+    assert(mint);
+    assert(decimals);
+    const foundTokenInfo = { mint, decimals };
+    if (tokenInfo !== null && !_.isEqual(foundTokenInfo, tokenInfo)) {
+      throw new Error(
+        `Cannot find consistent token information from transfer: ${JSON.stringify({
+          transfer,
+          tokenInfo,
+          foundTokenInfo,
+        })}`,
+      );
+    }
+    tokenInfo = foundTokenInfo;
+  }
+
+  if (!tokenInfo) {
+    throw new Error(`Cannot find token information from transfer: ${JSON.stringify(transfer)}`);
+  }
+
+  return tokenInfo;
 }
 
 export function getNextInstruction(instruction: Instruction, instructions: Instruction[]) {
@@ -151,7 +202,7 @@ export function getInnerInstructions(
 export function getInnerTransfersByLevel(
   parent: Instruction,
   instructions: Instruction[],
-  level: number,
+  level?: number,
 ) {
   return getInnerInstructions(parent, instructions, level).filter((inner) => {
     const desc = getInstructionD1(inner);
@@ -181,8 +232,12 @@ export function getInstructionD4(instruction: Instruction) {
  * @param block
  * @returns
  */
-export function getDecodedInnerTransfers(ins: Instruction, block: Block): DecodedTransfer[] {
-  return getInnerTransfersByLevel(ins, block.instructions, 1).map((t) => {
+export function getDecodedInnerTransfers(
+  ins: Instruction,
+  block: Block,
+  level: number | null = 1,
+): DecodedTransfer[] {
+  return getInnerTransfersByLevel(ins, block.instructions, level || undefined).map((t) => {
     const programId = t.programId;
     const d1 = getInstructionD1(t);
 

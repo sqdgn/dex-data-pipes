@@ -15,6 +15,10 @@ logger.info(`Local database: ${config.dbPath}`);
 logger.info(`Cache dump path: ${config.cacheDumpPath}`);
 
 async function main() {
+  // Serialize BigInts as string
+  BigInt.prototype['toJSON'] = function () {
+    return this.toString();
+  };
   Error.stackTraceLimit = 1000;
   const clickhouse = await createClickhouseClient({
     capture_enhanced_stack_trace: true,
