@@ -42,16 +42,16 @@ function findInputTransfer(
   userInAccount: string,
   // Pass an array if there is more than 1 possible inTokenVault
   inTokenVault: string | string[],
-): DecodedTransfer {
+): DecodedTransfer | null {
   const possibleInTokenVaults = Array.isArray(inTokenVault) ? inTokenVault : [inTokenVault];
   const candidates = transfers.filter(
     (t) =>
       t.accounts.source === userInAccount && possibleInTokenVaults.includes(t.accounts.destination),
   );
-  if (candidates.length !== 1) {
+  if (candidates.length > 1) {
     throw new Error(`Unexpected number of possible swap input transfers: ${candidates.length}`);
   }
-  return candidates[0];
+  return candidates[0] || null;
 }
 
 function findOutputTransfer(
@@ -78,6 +78,18 @@ export const dammSwapHandler: SwapStreamInstructionHandler = {
       decodedIns.accounts;
     const transfers = getDecodedInnerTransfers(ins, block, null);
     const inputTransfer = findInputTransfer(transfers, userSourceToken, [aTokenVault, bTokenVault]);
+
+    if (!inputTransfer) {
+      if (!decodedIns.data.inAmount) {
+        // Can sometimes be empty as evidenced by:
+        // 638n1UCEEhCdp6WAJ1e6f6pMn3gstZ7WPiGk6NFSR61MFR6tLgiZhx9qdFWwGF6bAkYACXj9bCrwn9VLbLamNvYh
+        logger.warn({ tx: getTransactionHash(ins, block) }, `Meteora DAMM: No input transfer`);
+      } else {
+        throw new Error(`Meteora DAMM: Missing input transfer`);
+      }
+      return null;
+    }
+
     const tokenAIsInput = inputTransfer.accounts.destination === aTokenVault;
     const reserveInAcc = tokenAIsInput ? aTokenVault : bTokenVault;
     const reserveOutAcc = tokenAIsInput ? bTokenVault : aTokenVault;
@@ -145,6 +157,12 @@ export const dlmmSwapHandler: SwapStreamInstructionHandler = {
     } = decodedIns.accounts;
     const transfers = getDecodedInnerTransfers(ins, block);
     const inputTransfer = findInputTransfer(transfers, userTokenIn, [reserveX, reserveY]);
+
+    if (!inputTransfer) {
+      // FIXME: Unclear whether it's possible
+      throw new Error(`Meteora DLMM: Missing input transfer`);
+    }
+
     const tokenXIsInput = inputTransfer.accounts.destination === reserveX;
     const reserveInAcc = tokenXIsInput ? reserveX : reserveY;
     const reserveOutAcc = tokenXIsInput ? reserveY : reserveX;
