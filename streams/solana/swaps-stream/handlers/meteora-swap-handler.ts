@@ -11,6 +11,7 @@ import { DecodedTransfer, Instruction } from '../../types';
 import { getInstructionDescriptor } from '@subsquid/solana-stream';
 import assert from 'node:assert';
 import { SwapStreamInstructionHandler } from '../types';
+import _ from 'lodash';
 
 export const dlmmSwapInstructions = [
   meteoraDlmm.instructions.swap,
@@ -37,21 +38,51 @@ function decodeMeteoraDammSwapIns(ins: Instruction) {
   }
 }
 
-function findInputTransfer(
+function findDammInputTransfer(
   transfers: DecodedTransfer[],
   userInAccount: string,
-  // Pass an array if there is more than 1 possible inTokenVault
-  inTokenVault: string | string[],
+  possibleInTokenVaults: string[],
+  amountIn: bigint,
 ): DecodedTransfer | null {
-  const possibleInTokenVaults = Array.isArray(inTokenVault) ? inTokenVault : [inTokenVault];
-  const candidates = transfers.filter(
-    (t) =>
-      t.accounts.source === userInAccount && possibleInTokenVaults.includes(t.accounts.destination),
+  const transfersFromUserIn = transfers.filter((t) => t.accounts.source === userInAccount);
+  const transfersFromUserInToInputVault = transfersFromUserIn.filter((t) =>
+    possibleInTokenVaults.includes(t.accounts.destination),
   );
-  if (candidates.length > 1) {
-    throw new Error(`Unexpected number of possible swap input transfers: ${candidates.length}`);
+  const userInTransfersSum = transfersFromUserIn.reduce((a, b) => a + b.data.amount, 0n);
+  // Expect the sum of all transfers from userIn to match amountIn
+  if (userInTransfersSum !== amountIn) {
+    throw new Error(
+      `Unexpected input transfers sum. Expected: ${amountIn}, got: ${userInTransfersSum}`,
+    );
   }
-  return candidates[0] || null;
+  // There are possibly multiple input transfers to vault
+  // (e.g.: ixQeiySjDJC9ozzsEHk8z2wkFuz5UomvJJemPPZfvrY6GGDP1zxpZjPLUin4fNjQ793nM9Jne7uEif5ksSdWf6c)
+  // so we pick the highest-amount one
+  return _.maxBy(transfersFromUserInToInputVault, (t) => t.data.amount) || null;
+}
+
+function findDlmmInputTransfer(
+  transfers: DecodedTransfer[],
+  userInAccount: string,
+  possibleInTokenVaults: string[],
+  maxInAmount: bigint,
+): [inputTransfer: DecodedTransfer, amountIn: bigint] {
+  const transfersFromUserIn = transfers.filter((t) => t.accounts.source === userInAccount);
+  const transfersFromUserInToInputVault = transfersFromUserIn.filter((t) =>
+    possibleInTokenVaults.includes(t.accounts.destination),
+  );
+  const userInTransfersSum = transfersFromUserIn.reduce((a, b) => a + b.data.amount, 0n);
+  // Expect the sum of all transfers from userIn to be <= maxInAmount
+  if (userInTransfersSum > maxInAmount) {
+    throw new Error(`Unexpected input transfers sum. ${userInTransfersSum} exceeds ${maxInAmount}`);
+  }
+  // Expect exactly 1 transfer from userIn to input vault
+  if (transfersFromUserInToInputVault.length !== 1) {
+    throw new Error(
+      `Unexpected number of transfers from userIn to input vault: ${transfersFromUserInToInputVault.length}`,
+    );
+  }
+  return [transfersFromUserInToInputVault[0], userInTransfersSum];
 }
 
 function findOutputTransfer(
@@ -77,7 +108,12 @@ export const dammSwapHandler: SwapStreamInstructionHandler = {
     const { pool, userSourceToken, userDestinationToken, aTokenVault, bTokenVault } =
       decodedIns.accounts;
     const transfers = getDecodedInnerTransfers(ins, block, null);
-    const inputTransfer = findInputTransfer(transfers, userSourceToken, [aTokenVault, bTokenVault]);
+    const inputTransfer = findDammInputTransfer(
+      transfers,
+      userSourceToken,
+      [aTokenVault, bTokenVault],
+      decodedIns.data.inAmount,
+    );
 
     if (!inputTransfer) {
       if (!decodedIns.data.inAmount) {
@@ -123,7 +159,7 @@ export const dammSwapHandler: SwapStreamInstructionHandler = {
       type: 'meteora_damm',
       account: inputTransfer.accounts.authority,
       input: {
-        amount: inputTransfer.data.amount,
+        amount: decodedIns.data.inAmount,
         mintAcc: tokenInInfo.mint,
         decimals: tokenInInfo.decimals,
         reserves: reserveInAmount,
@@ -146,6 +182,7 @@ export const dlmmSwapHandler: SwapStreamInstructionHandler = {
     dlmmSwapInstructions.map(({ d8 }) => d8).includes(getInstructionDescriptor(ins)),
   run: ({ ins, block }) => {
     const decodedIns = decodeMeteoraDlmmSwapIns(ins);
+    const insData = decodedIns.data;
     const {
       lbPair: poolAddress,
       tokenXMint,
@@ -156,12 +193,12 @@ export const dlmmSwapHandler: SwapStreamInstructionHandler = {
       userTokenOut,
     } = decodedIns.accounts;
     const transfers = getDecodedInnerTransfers(ins, block);
-    const inputTransfer = findInputTransfer(transfers, userTokenIn, [reserveX, reserveY]);
-
-    if (!inputTransfer) {
-      // FIXME: Unclear whether it's possible
-      throw new Error(`Meteora DLMM: Missing input transfer`);
-    }
+    const [inputTransfer, amountIn] = findDlmmInputTransfer(
+      transfers,
+      userTokenIn,
+      [reserveX, reserveY],
+      'maxInAmount' in insData ? insData.maxInAmount : insData.amountIn,
+    );
 
     const tokenXIsInput = inputTransfer.accounts.destination === reserveX;
     const reserveInAcc = tokenXIsInput ? reserveX : reserveY;
@@ -201,7 +238,7 @@ export const dlmmSwapHandler: SwapStreamInstructionHandler = {
       type: 'meteora_dlmm',
       account: inputTransfer.accounts.owner,
       input: {
-        amount: inputTransfer.data.amount,
+        amount: amountIn,
         mintAcc: tokenInInfo.mint,
         decimals: tokenInInfo.decimals,
         reserves: reserveInAmount,
