@@ -1,10 +1,9 @@
+import { getInstructionData } from '@subsquid/solana-stream';
 import * as metaplex from '../contracts/metaplex';
-import {
-  Instruction,
-  SolanaTokenMetadata,
-  SolanaTokenMetadataUpdate,
-} from '../types';
+import { Instruction, SolanaTokenMetadata, SolanaTokenMetadataUpdate } from '../types';
 import { getInstructionD1 } from '../utils';
+import { Codec, ref, Src, struct, bool } from '@subsquid/borsh';
+import { CreateMetadataAccountArgsV3, DataV2 } from '../contracts/metaplex/types';
 
 export const createMetadataInstructions = [
   metaplex.instructions.createMetadataAccount,
@@ -20,8 +19,7 @@ export const updateMetadataInstructions = [
 export const isCreateMetadataInstruction = (ins: Instruction): boolean => {
   const desc = getInstructionD1(ins);
   return (
-    ins.programId === metaplex.programId &&
-    createMetadataInstructions.some((i) => i.d1 === desc)
+    ins.programId === metaplex.programId && createMetadataInstructions.some((i) => i.d1 === desc)
   );
 };
 
@@ -47,10 +45,22 @@ function decodeCreateMetadataIns(ins: Instruction) {
       };
     }
     case metaplex.instructions.createMetadataAccountV3.d1: {
-      const md = metaplex.instructions.createMetadataAccountV3.decode(ins);
+      const accounts = metaplex.instructions.createMetadataAccountV3.decodeAccounts(ins.accounts);
+      // FIXME: Temporary hotfix for 2zro8WArbfdH5nmz1p6x3QAc2ARnpxT4hmHoWJp8iDdAfWELQ5qvfwqkGSU8WYDNqpZt5SCxvxadBqbddwXHhg5e
+      // Decoding only the data we're interested in and ignoring the rest
+      const src = new Src(getInstructionData(ins));
+      src.u8(); // decode d1 and move the pointer
+      const CreateMetadataAccountArgsV3Partial: Codec<
+        Omit<CreateMetadataAccountArgsV3, 'collectionDetails'>
+      > = struct({
+        data: ref(() => DataV2),
+        isMutable: bool,
+        // ignore collectionDetails which are the source of the issue
+      });
+      const data = CreateMetadataAccountArgsV3Partial.decode(src);
       return {
-        ...md,
-        args: md.data.createMetadataAccountArgsV3,
+        accounts,
+        args: data,
       };
     }
     default:
@@ -91,9 +101,7 @@ export function handleCreateMetadata(ins: Instruction): SolanaTokenMetadata {
   };
 }
 
-export function handleUpdateMetadata(
-  ins: Instruction
-): SolanaTokenMetadataUpdate {
+export function handleUpdateMetadata(ins: Instruction): SolanaTokenMetadataUpdate {
   const md = decodeUpdateMetadataIns(ins);
   return {
     metadataAcc: md.accounts.metadata,
