@@ -31,6 +31,9 @@ const PORTAL = {
   zora: {
     url: 'https://portal.sqd.dev/datasets/zora-mainnet',
   },
+  bsc: {
+    url: 'https://portal.sqd.dev/datasets/binance-mainnet'
+  }
 };
 
 export function getConfig() {

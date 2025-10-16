@@ -55,13 +55,27 @@ export class TokenMetadataStorage {
       ),
     };
     this.tokenMetadataMap = new Map();
-    // predefined ETH token (used in Uniswap V4)
-    this.tokenMetadataMap.set(ZERO_ADDRESS, {
-      address: ZERO_ADDRESS,
-      decimals: 18,
-      network,
-      symbol: 'ETH',
-    });
+    // predefined base token (used in Uniswap V4)
+    switch (network) {
+      case 'base':
+      case 'ethereum':
+      case 'zora':
+        this.tokenMetadataMap.set(ZERO_ADDRESS, {
+          address: ZERO_ADDRESS,
+          decimals: 18,
+          network,
+          symbol: 'ETH',
+        });
+        break;
+      case 'bsc':
+        this.tokenMetadataMap.set(ZERO_ADDRESS, {
+          address: ZERO_ADDRESS,
+          decimals: 18,
+          network,
+          symbol: 'BNB'
+        })
+        break;
+    }
   }
 
   getTokenMetadata(tokenAddress: string): TokenMetadata | undefined {

@@ -8,7 +8,7 @@ import {
   ReferenceToken,
   referenceTokens,
   ReferenceTokenWithPrice,
-  USDC_TOKEN_ADDRESS,
+  MAIN_QUOTE_TOKEN_ADDRESS
 } from './reference_tokens';
 import { LRUMap } from './util/LRUMap';
 import { DbSwap, TokenPositions } from './util/TokenPositions';
@@ -298,7 +298,7 @@ export class PriceExtendStream {
       return swap;
     }
 
-    if (swap.tokenB.address === USDC_TOKEN_ADDRESS[this.network]) {
+    if (swap.tokenB.address === MAIN_QUOTE_TOKEN_ADDRESS[this.network]) {
       if (Math.abs(swap.tokenB.amount_human) < 0.1 || Math.abs(swap.tokenB.amount_human) > 10000) {
         // don't calculate for too small and too large USDC amounts
         swap.price_token_a_usdc = 0;
