@@ -390,3 +390,25 @@ FROM top_traders(
 WHERE account = '0x8359870917b063fe2ee9aaec5af0ff1ea6caa149'
 
 */
+
+
+create table first_pool_swap
+(
+    pool_address String,
+    timestamp    AggregateFunction(argMin, DateTime, DateTime)
+)
+    engine = AggregatingMergeTree ORDER BY pool_address
+        SETTINGS index_granularity = 8192;
+
+
+CREATE MATERIALIZED VIEW first_pool_swap_mv TO first_pool_swap
+(
+    `pool_address` String,
+    `timestamp` AggregateFunction(argMin, DateTime, DateTime)
+)
+AS
+SELECT pool_address,
+       argMinState(timestamp, timestamp) AS timestamp
+FROM base_swaps.swaps_raw
+GROUP BY pool_address;
+
