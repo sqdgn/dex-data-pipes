@@ -409,6 +409,5 @@ CREATE MATERIALIZED VIEW first_pool_swap_mv TO first_pool_swap
 AS
 SELECT pool_address,
        argMinState(timestamp, timestamp) AS timestamp
-FROM base_swaps.swaps_raw
+FROM swaps_raw
 GROUP BY pool_address;
-
