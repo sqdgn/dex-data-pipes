@@ -392,7 +392,7 @@ WHERE account = '0x8359870917b063fe2ee9aaec5af0ff1ea6caa149'
 */
 
 
-create table first_pool_swap
+CREATE TABLE IF NOT EXISTS first_pool_swap
 (
     pool_address String,
     timestamp    AggregateFunction(argMin, DateTime, DateTime)
@@ -401,7 +401,7 @@ create table first_pool_swap
         SETTINGS index_granularity = 8192;
 
 
-CREATE MATERIALIZED VIEW first_pool_swap_mv TO first_pool_swap
+CREATE MATERIALIZED VIEW IF NOT EXISTS first_pool_swap_mv TO first_pool_swap
 (
     `pool_address` String,
     `timestamp` AggregateFunction(argMin, DateTime, DateTime)

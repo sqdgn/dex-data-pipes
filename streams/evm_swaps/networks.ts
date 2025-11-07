@@ -8,6 +8,8 @@ import { events as AerodromeBasicFactoryEvents } from './protocols/aerodrome.bas
 import { events as AerodromeBasicSwapEvents } from './protocols/aerodrome.basic/swaps';
 import { events as AerodromeSlipstreamFactoryEvents } from './protocols/aerodrome.slipstream/factory';
 import { events as AerodromeSlipstreamSwapEvents } from './protocols/aerodrome.slipstream/swaps';
+import { events as PancakeswapV3FactoryEvents } from './protocols/pancakeswap.v3/factory';
+import { events as PancakeswapV3SwapEvents } from './protocols/pancakeswap.v3/swaps';
 
 import { DecodedEvmSwap } from './swap_types';
 import { EventRecord } from '@subsquid/evm-abi';
@@ -23,6 +25,10 @@ import {
 } from './protocols/aerodrome.slipstream/handle_events';
 import { PoolMetadataSimple } from './pool_metadata_storage';
 import { handleUniswapV4Pool, handleUniswapV4Swap } from './protocols/uniswap.v4/handle_events';
+import {
+  handlePancakeswapV3Pool,
+  handlePancakeswapV3Swap,
+} from './protocols/pancakeswap.v3/handle_events';
 
 export const NetworkValues = ['base', 'ethereum', 'zora', 'bsc'] as const;
 export type Network = (typeof NetworkValues)[number];
@@ -33,10 +39,17 @@ export const AllDexProtocols = [
   'uniswap_v4',
   'aerodrome_basic',
   'aerodrome_slipstream',
+  'pancakeswap_v3',
 ] as const;
 
 export type DexProtocol = (typeof AllDexProtocols)[number];
-export type DexName = 'uniswap' | 'aerodrome' | 'sushiswap' | 'baseswap' | 'rocketswap';
+export type DexName =
+  | 'uniswap'
+  | 'aerodrome'
+  | 'sushiswap'
+  | 'baseswap'
+  | 'rocketswap'
+  | 'pancakeswap';
 
 type SwapHandler = (log: any) => DecodedEvmSwap | null;
 type SwapEvent = { is: (log: EventRecord) => boolean };
@@ -99,6 +112,17 @@ const uniswapV4Protocol = (poolManagerAddress: string) =>
     handleUniswapV4Swap,
   );
 
+// Pancakeswap V3 has a different Swap event signature
+// compared to Uniswap V3
+const pancakeswapV3Protocol = (factoryAddress: string) =>
+  protocol(
+    factoryAddress,
+    PancakeswapV3FactoryEvents.PoolCreated,
+    handlePancakeswapV3Pool,
+    PancakeswapV3SwapEvents.Swap,
+    handlePancakeswapV3Swap,
+  );
+
 export const NetworksMappings: Record<
   Network,
   Partial<Record<DexName, Partial<Record<DexProtocol, ProtocolConfig>>>>
@@ -157,14 +181,20 @@ export const NetworksMappings: Record<
     uniswap: {
       uniswap_v2: uniswapV2Protocol('0x8909dc15e40173ff4699343b6eb8132c65e18ec6'),
       uniswap_v3: uniswapV3Protocol('0xdb1d10011ad0ff90774d0c6bb92e5c5c8b4461f7'),
-      uniswap_v4: uniswapV4Protocol('0x28e2ea090877bf75740558f6bfb36a5ffee9e9df')
-    }
-  }
+      uniswap_v4: uniswapV4Protocol('0x28e2ea090877bf75740558f6bfb36a5ffee9e9df'),
+    },
+    pancakeswap: {
+      // v2 is identical to Uniswap
+      uniswap_v2: uniswapV2Protocol('0xca143ce32fe78f1f7019d7d551a6402fc5350c73'),
+      // v3 has a different Swap event signature
+      pancakeswap_v3: pancakeswapV3Protocol('0x0bfbcf9fa4f9c56b0f40a671ad40e0805a091865'),
+    },
+  },
 };
 
 export const MulticallAddresses: Record<Network, string> = {
   ethereum: '0x5BA1e12693Dc8F9c48aAD8770482f4739bEeD696',
   base: '0xcA11bde05977b3631167028862bE2a173976CA11',
   zora: '0xcA11bde05977b3631167028862bE2a173976CA11',
-  bsc: '0xcA11bde05977b3631167028862bE2a173976CA11'
+  bsc: '0xcA11bde05977b3631167028862bE2a173976CA11',
 };
