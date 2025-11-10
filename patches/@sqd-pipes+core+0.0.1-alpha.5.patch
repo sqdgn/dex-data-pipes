@@ -1,0 +1,26 @@
+diff --git a/node_modules/@sqd-pipes/core/dist/core/state/clickhouse/clickhouse-state.js b/node_modules/@sqd-pipes/core/dist/core/state/clickhouse/clickhouse-state.js
+index 82ee631..eb28aab 100644
+--- a/node_modules/@sqd-pipes/core/dist/core/state/clickhouse/clickhouse-state.js
++++ b/node_modules/@sqd-pipes/core/dist/core/state/clickhouse/clickhouse-state.js
+@@ -159,6 +159,8 @@ class ClickhouseState extends state_1.AbstractState {
+             format: 'JSONEachRow',
+             clickhouse_settings: {
+                 date_time_output_format: 'iso',
++                output_format_json_quote_64bit_floats: 1,
++                output_format_json_quote_64bit_integers: 1
+             },
+             query_params: params,
+         });
+diff --git a/node_modules/@sqd-pipes/core/src/core/state/clickhouse/clickhouse-state.ts b/node_modules/@sqd-pipes/core/src/core/state/clickhouse/clickhouse-state.ts
+index ec1c696..c30f3d3 100644
+--- a/node_modules/@sqd-pipes/core/src/core/state/clickhouse/clickhouse-state.ts
++++ b/node_modules/@sqd-pipes/core/src/core/state/clickhouse/clickhouse-state.ts
+@@ -272,6 +272,8 @@ export class ClickhouseState extends AbstractState implements State {
+         format: 'JSONEachRow',
+         clickhouse_settings: {
+           date_time_input_format: 'best_effort',
++          output_format_json_quote_64bit_floats: 1,
++          output_format_json_quote_64bit_integers: 1
+         },
+       });
+ 
