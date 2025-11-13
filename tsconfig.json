@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
-    "module": "commonjs",
-    "target": "es2021",
+    "module": "nodenext",
+    "target": "es2023",
     "pretty": true,
     "sourceMap": true,
     "outDir": "dist",
@@ -15,7 +15,7 @@
     "noUnusedParameters": false,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
-    "moduleResolution": "node",
+    "moduleResolution": "nodenext",
     "baseUrl": "./",
     "allowSyntheticDefaultImports": true,
     "strictPropertyInitialization": false,

@@ -59,7 +59,7 @@ async function main() {
             where: `timestamp > ${latest.timestamp}`,
           });
         } catch (err) {
-          logger.error('onRollback err:', inspect(err));
+          logger.error({ err }, 'onRollback err');
           throw err;
         }
       },
@@ -134,7 +134,7 @@ async function main() {
           }),
       );
     } catch (err) {
-      logger.error('insert err:', inspect(err));
+      logger.error({ err }, 'insert err');
       throw err;
     }
     await ds.ack();

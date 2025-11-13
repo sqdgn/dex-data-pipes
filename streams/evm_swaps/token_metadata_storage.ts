@@ -203,7 +203,7 @@ export class TokenMetadataStorage {
             };
             this.saveTokenMetadataIntoDb([newToken]);
           } catch (err) {
-            this.logger.warn('multicall decode error, will retry: ', inspect(err));
+            this.logger.warn({ err }, 'multicall decode error, will retry');
             wrongDataTokenAddresses.push(tokenAddress);
           }
         }

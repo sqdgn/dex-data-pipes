@@ -8,4 +8,7 @@ metadata
 *.duckdb
 *.wal
 *.env
+*.log
 .env
+*.sqlite
+*.tmp
