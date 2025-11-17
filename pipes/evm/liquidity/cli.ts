@@ -10,7 +10,7 @@ import { getConfig } from '../config';
 import { chRetry } from '../../../common/chRetry';
 import { initializeLogger } from '@sqdgn/context-logging/logger';
 import { createPortalSource } from './portal_source';
-import { createV2Decoder, createV3Decoder } from './evm_decoder';
+import { createDecoders } from './evm_decoder';
 import { createTarget } from './clickhouse_target';
 import { createPipeFunc } from './raw_liquidity_event_pipe';
 import assert from 'assert';
@@ -35,12 +35,9 @@ async function main() {
     process.env.PORTAL_CACHE_DB_PATH,
   );
   const chTarget = await createTarget(client, logger);
-
+  const decoders = await createDecoders(config.network, config.dbPath, config.blockFrom);
   await portalSource
-    .pipeComposite({
-      uniswapV2: await createV2Decoder(config.network, config.dbPath, config.blockFrom),
-      uniswapV3: await createV3Decoder(config.network, config.dbPath, config.blockFrom),
-    })
+    .pipeComposite({ ...decoders })
     .pipe(createPipeFunc(config.network))
     .pipeTo(chTarget);
 }

@@ -17,7 +17,7 @@
     "@nestjs/common": "^11.1.8",
     "@sqd-pipes/core": "0.0.1-alpha.5",
     "@sqd-pipes/pipe-ui": "^0.0.1-alpha.11",
-    "@sqd-pipes/pipes": "^0.0.1-alpha.36",
+    "@sqd-pipes/pipes": "0.0.1-alpha.38",
     "@sqdgn/context-logging": "^0.1.0",
     "@subsquid/borsh": "^0.3.0",
     "@subsquid/evm-abi": "^0.3.1",

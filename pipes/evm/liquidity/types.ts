@@ -1,6 +1,6 @@
 import { DexName, DexProtocol } from 'streams/evm_swaps/networks';
 
-export type LiqEventType = 'mint' | 'burn' | 'swap';
+export type LiqEventType = 'mint' | 'burn' | 'swap' | 'collect' | 'sync' | 'fees';
 
 export type RawLiquidityEvent = {
   timestamp: number;

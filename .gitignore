@@ -12,3 +12,4 @@ ch_data
 .DS_Store
 prices.json
 *.log
+*.tmp
