@@ -55,7 +55,7 @@ export const getFactoryAddressesByProtocol = (network: Network, protocol: DexPro
 
       for (const [prot, config] of Object.entries(protocols)) {
         if (prot === protocol) {
-          res.push(config.address);
+          res.push(config.address.toLowerCase());
         }
       }
     }
