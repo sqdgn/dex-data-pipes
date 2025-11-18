@@ -22,6 +22,7 @@
     "@subsquid/borsh": "^0.3.0",
     "@subsquid/evm-abi": "^0.3.1",
     "@subsquid/evm-codec": "^0.3.0",
+    "@subsquid/pipes": "^0.1.0-beta.0",
     "@subsquid/solana-stream": "1.0.0-portal-api.da1f68",
     "alpha": "^1.0.0",
     "better-sqlite3": "^12.4.1",

@@ -1,4 +1,3 @@
-import { CompositePipe } from 'node_modules/@sqd-pipes/pipes/dist/core/composite-transformer';
 import { LiqEventType, RawLiquidityEvent } from './types';
 import { token } from 'streams/solana/swaps-stream/handlers';
 import assert from 'assert';
@@ -8,6 +7,7 @@ import { LogFields } from 'node_modules/@sqd-pipes/pipes/dist/portal-client/quer
 import { DexName, DexProtocol, Network } from 'streams/evm_swaps/networks';
 import { factoryAddressToDexName } from './factories';
 import { createDecoders } from './evm_decoder';
+import { CompositePipe } from 'node_modules/@subsquid/pipes/dist/core/composite-transformer';
 
 type UniswapV2ReturnType = Awaited<ReturnType<typeof createDecoders>>['uniswapV2'];
 type UniswapV3ReturnType = Awaited<ReturnType<typeof createDecoders>>['uniswapV3'];

@@ -1,6 +1,3 @@
-import { EvmSwapStream } from '../../../streams/evm_swaps/evm_swap_stream';
-import { PriceExtendStream } from '../../../streams/evm_swaps/price_extend_stream';
-import { createClickhouseClient, ensureTables, toUnixTime } from '../../clickhouse';
 import { events as UniswapV2FactoryEvents } from '../../../streams/evm_swaps/protocols/uniswap.v2/factory';
 import { events as UniswapV2PairEvents } from '../../../streams/evm_swaps/protocols/uniswap.v2/swaps';
 import { events as UniswapV3FactoryEvents } from '../../../streams/evm_swaps/protocols/uniswap.v3/factory';
@@ -9,22 +6,7 @@ import { events as AerodromeBasicPoolEvents } from '../../../streams/evm_swaps/p
 import { events as AerodromeBasicFactoryEvents } from '../../../streams/evm_swaps/protocols/aerodrome.basic/factory';
 import { events as AerodromeSlipstreamPoolEvents } from '../../../streams/evm_swaps/protocols/aerodrome.slipstream/swaps';
 import { events as AerodromeSlipstreamFactoryEvents } from '../../../streams/evm_swaps/protocols/aerodrome.slipstream/factory';
-import { createLogger } from '../../utils';
-import { getConfig } from '../config';
-import { chRetry } from '../../../common/chRetry';
-import {
-  commonAbis,
-  createEvmDecoder,
-  createEvmPortalSource,
-  createFactory,
-  DecodedEvent,
-  sqliteFactoryDatabase,
-} from '@sqd-pipes/pipes/evm';
-import { createClickhouseTarget } from '@sqd-pipes/pipes/targets/clickhouse';
-import { createNodeMetricsServer } from '@sqd-pipes/pipes/metrics/node';
-import { sqliteCacheAdapter } from '@sqd-pipes/pipes/portal-cache';
-import { DatabaseSync } from 'node:sqlite';
-import { initializeLogger } from '@sqdgn/context-logging/logger';
+import { evmDecoder, factory, factorySqliteDatabase } from '@subsquid/pipes/evm';
 import { Network } from 'streams/evm_swaps/networks';
 import { FactoryConfigs, getFactoryAddressesByProtocol } from './factories';
 
@@ -35,18 +17,16 @@ export const createDecoders = async (
   poolsDatabasePath: string,
   blockFrom: number,
 ) => {
-  const database = await sqliteFactoryDatabase({ path: poolsDatabasePath });
+  const database = await factorySqliteDatabase({ path: poolsDatabasePath });
   const range = { from: blockFrom };
 
-  const v2_addresses = getFactoryAddressesByProtocol(network, 'uniswap_v2');
-  const basic_addresses = getFactoryAddressesByProtocol(network, 'aerodrome_basic');
   return {
     // Pool fees are left in a pool and constitite pool TVL
-    uniswapV2: createEvmDecoder({
+    uniswapV2: evmDecoder({
       profiler,
       range,
-      contracts: createFactory({
-        address: v2_addresses,
+      contracts: factory({
+        address: getFactoryAddressesByProtocol(network, 'uniswap_v2'),
         event: UniswapV2FactoryEvents.PairCreated,
         database,
         parameter: 'pair',
@@ -60,10 +40,10 @@ export const createDecoders = async (
     }),
 
     // Pool fees are left in the pool but does not constitute pool TVL
-    uniswapV3: createEvmDecoder({
+    uniswapV3: evmDecoder({
       profiler,
       range: { from: blockFrom },
-      contracts: createFactory({
+      contracts: factory({
         address: getFactoryAddressesByProtocol(network, 'uniswap_v3'),
         event: UniswapV3FactoryEvents.PoolCreated,
         database,
@@ -78,11 +58,11 @@ export const createDecoders = async (
     }),
 
     // Pool fees are left in the pool but does not constitute pool TVL
-    aerodromeBasic: createEvmDecoder({
+    aerodromeBasic: evmDecoder({
       profiler,
       range,
-      contracts: createFactory({
-        address: basic_addresses,
+      contracts: factory({
+        address: getFactoryAddressesByProtocol(network, 'aerodrome_basic'),
         event: AerodromeBasicFactoryEvents.PoolCreated,
         database,
         parameter: 'pool',
@@ -96,10 +76,10 @@ export const createDecoders = async (
       },
     }),
 
-    aerodromeSlipstream: createEvmDecoder({
+    aerodromeSlipstream: evmDecoder({
       profiler,
       range,
-      contracts: createFactory({
+      contracts: factory({
         address: getFactoryAddressesByProtocol(network, 'aerodrome_slipstream'),
         event: AerodromeSlipstreamFactoryEvents.PoolCreated,
         database,
