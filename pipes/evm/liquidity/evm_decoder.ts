@@ -89,7 +89,7 @@ export const createDecoders = async (
         swaps: AerodromeSlipstreamPoolEvents.Swap,
         burns: AerodromeSlipstreamPoolEvents.Burn,
         mints: AerodromeSlipstreamPoolEvents.Mint,
-        syncs: AerodromeSlipstreamPoolEvents.Collect,
+        collects: AerodromeSlipstreamPoolEvents.Collect,
       },
     }),
   };

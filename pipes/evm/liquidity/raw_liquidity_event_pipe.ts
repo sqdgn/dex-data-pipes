@@ -100,7 +100,7 @@ export const createPipeFunc = (network: Network) => {
             ...e,
             event: {
               amount0: e.event.reserve0,
-              amount1: e.event.reserve0,
+              amount1: e.event.reserve1,
             },
           },
           'sync',
@@ -143,11 +143,26 @@ export const createPipeFunc = (network: Network) => {
           'swap',
         ] as const,
     );
+
+    const basic_syncs = aerodromeBasic.syncs.map(
+      (e) =>
+        [
+          {
+            ...e,
+            event: {
+              amount0: e.event.reserve0,
+              amount1: e.event.reserve1,
+            },
+          },
+          'sync',
+        ] as const,
+    );
     const basic = [
       ...aerodromeBasic.burns.map((e) => [e, 'burn'] as const),
       ...aerodromeBasic.fees.map((e) => [e, 'fees'] as const),
       ...aerodromeBasic.mints.map((e) => [e, 'mint'] as const),
       ...basic_swaps,
+      ...basic_syncs,
     ];
     const basic_res = basic.map((e) => rawLiqEventToEvent(e[0], e[1], network, 'aerodrome_basic'));
 
@@ -156,7 +171,7 @@ export const createPipeFunc = (network: Network) => {
       ...aerodromeSlipstream.burns.map((e) => [e, 'burn'] as const),
       ...aerodromeSlipstream.swaps.map((e) => [e, 'swap'] as const),
       ...aerodromeSlipstream.mints.map((e) => [e, 'mint'] as const),
-      ...aerodromeSlipstream.syncs.map((e) => [e, 'sync'] as const),
+      ...aerodromeSlipstream.collects.map((e) => [e, 'collect'] as const),
     ];
     const slipstream_res = slipstream.map((e) =>
       rawLiqEventToEvent(e[0], e[1], network, 'aerodrome_slipstream'),
