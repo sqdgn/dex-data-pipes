@@ -5,7 +5,11 @@ import * as process from 'node:process';
 import { ClickHouseClient, createClient } from '@clickhouse/client';
 import { NodeClickHouseClientConfigOptions } from '@clickhouse/client/dist/config';
 
-export async function loadSqlFiles(directoryOrFile: string): Promise<string[]> {
+export async function loadSqlFiles(
+  directoryOrFile: string,
+  networkReplace: string = '',
+  dbNameReplace: string = '',
+): Promise<string[]> {
   let sqlFiles: string[] = [];
 
   if (directoryOrFile.endsWith('.sql')) {
@@ -19,23 +23,30 @@ export async function loadSqlFiles(directoryOrFile: string): Promise<string[]> {
 
   const tables = await Promise.all(sqlFiles.map((file) => fs.readFile(file, 'utf-8')));
 
-  return tables.flatMap((table) => table.split(';').filter((t) => t.trim().length > 0));
+  return tables
+    .flatMap((table) => table.split(';').filter((t) => t.trim().length > 0))
+    .map((table) =>
+      table.replaceAll('${db_name}', dbNameReplace).replaceAll('${network}', networkReplace),
+    );
 }
 
 export async function ensureTables(
   clickhouse: ClickHouseClient,
-  dir: string,
+  dirOrFiles: string | string[],
   networkReplace: string = '',
   dbNameReplace: string = '',
 ) {
-  const tables = await loadSqlFiles(dir);
+  const tables =
+    typeof dirOrFiles === 'string'
+      ? await loadSqlFiles(dirOrFiles, networkReplace, dbNameReplace)
+      : (
+          await Promise.all(
+            dirOrFiles.flatMap((fileName) => loadSqlFiles(fileName, networkReplace, dbNameReplace)),
+          )
+        ).flat();
 
-  for (const table of tables) {
-    let query = '';
+  for (const query of tables) {
     try {
-      query = table
-        .replaceAll('${db_name}', dbNameReplace)
-        .replaceAll('${network}', networkReplace);
       await clickhouse.command({ query });
     } catch (e: any) {
       if (e.type === 'SYNTAX_ERROR' && e.message?.includes('Empty query')) {

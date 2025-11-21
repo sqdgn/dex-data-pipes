@@ -25,7 +25,13 @@ async function main() {
     },
     request_timeout: 900_000,
   });
-  await ensureTables(clickhouse, __dirname, config.network, process.env.CLICKHOUSE_DB!);
+  const enableTopWallets = process.env.ENABLE_TOP_WALLETS === 'true';
+  await ensureTables(
+    clickhouse,
+    enableTopWallets ? __dirname : [__dirname + '/swaps.sql'], // if topWallets are not enabled, only swaps.sql is applied
+    config.network,
+    process.env.CLICKHOUSE_DB!,
+  );
 
   const ds = new EvmSwapStream({
     portal: process.env.PORTAL_URL ?? config.portal.url,
@@ -69,7 +75,7 @@ async function main() {
 
   const stream = await ds.stream();
   for await (const swaps of stream.pipeThrough(
-    await new PriceExtendStream(clickhouse, config.network, logger).pipe(),
+    await new PriceExtendStream(clickhouse, config.network, logger, enableTopWallets).pipe(),
   )) {
     try {
       await chRetry(
