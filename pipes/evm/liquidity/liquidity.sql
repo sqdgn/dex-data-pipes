@@ -106,6 +106,6 @@ liq_history AS (
 SELECT timestamp, liquidity_usdc
 FROM liq_history
 ORDER BY timestamp DESC
-LIMIT 10;
+LIMIT 10
 
 */
