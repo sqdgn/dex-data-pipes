@@ -15,7 +15,7 @@ export const handleAerodromeBasicSwap = (log: any): DecodedEvmSwap | null => {
     },
     to: {
       amount: data.amount1Out > 0n ? -data.amount1Out : data.amount1In,
-      recipient: data.recipient,
+      recipient: data.to,
     },
   };
 };

@@ -90,3 +90,17 @@ export const referenceTokens: Record<Network, ReferenceToken[]> = {
     },
   ],
 };
+
+export const needSwap = (network: Network, token_a: string, token_b: string) => {
+  const toEndOfList = (x: number) => (x === -1 ? 1e9 : x);
+
+  const index_a = toEndOfList(
+    referenceTokens[network]!.findIndex((rt) => rt.tokenAddress === token_a),
+  );
+  const index_b = toEndOfList(
+    referenceTokens[network]!.findIndex((rt) => rt.tokenAddress === token_b),
+  );
+
+  // if token_a is earlier in reference tokens list, then true is returned (need to swap it to become token_b)
+  return index_a < index_b;
+};
