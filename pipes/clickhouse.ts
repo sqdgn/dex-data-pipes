@@ -78,6 +78,12 @@ export async function createClickhouseClient(
     database: process.env.CLICKHOUSE_DB,
     ...additionalOptions,
   };
+  options.clickhouse_settings = {
+    ...options.clickhouse_settings,
+    // these options are critical, without them an error can occur on rollback (numbers are not formatted properly)
+    output_format_json_quote_64bit_floats: 1,
+    output_format_json_quote_64bit_integers: 1,
+  };
 
   return createClient(options);
 }
