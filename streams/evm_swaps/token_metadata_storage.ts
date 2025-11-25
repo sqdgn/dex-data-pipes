@@ -149,7 +149,7 @@ export class TokenMetadataStorage {
           callSuccess = true;
         } catch (err) {
           this.logger.error(
-            `multicall call error: ${(err as any).shortMessage || (err as any).reason}`,
+            `multicall call error: ${(err as any).shortMessage || (err as any).message || (err as any).reason}`,
           );
           continue;
         }

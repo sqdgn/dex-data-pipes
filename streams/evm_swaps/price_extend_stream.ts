@@ -33,6 +33,7 @@ export class PriceExtendStream {
     private client: ClickHouseClient,
     private network: Network,
     private logger: Logger,
+    private enableTopWallets: boolean,
   ) {
     assert(referenceTokens[network], `reference tokens must be defined for ${network}`);
   }
@@ -336,45 +337,47 @@ export class PriceExtendStream {
       });
     }
 
-    const [positionsA, positionsB] = await this.profiler.profile('load_positions', async () => {
-      const posA = await chRetry(
-        this.logger,
-        'getOrLoadTokenPositionsA',
-        async () => await this.getOrLoadTokenPositions(swap.account, swap.tokenA.address),
-      );
-      const posB = await chRetry(
-        this.logger,
-        'getOrLoadTokenPositionsB',
-        async () => await this.getOrLoadTokenPositions(swap.account, swap.tokenB.address),
-      );
-      return [posA, posB];
-    });
+    if (this.enableTopWallets) {
+      const [positionsA, positionsB] = await this.profiler.profile('load_positions', async () => {
+        const posA = await chRetry(
+          this.logger,
+          'getOrLoadTokenPositionsA',
+          async () => await this.getOrLoadTokenPositions(swap.account, swap.tokenA.address),
+        );
+        const posB = await chRetry(
+          this.logger,
+          'getOrLoadTokenPositionsB',
+          async () => await this.getOrLoadTokenPositions(swap.account, swap.tokenB.address),
+        );
+        return [posA, posB];
+      });
 
-    if (swap.tokenA.amount_human < 0) {
-      this.profiler.profileSync('entry_position', () => {
-        positionsA.entry(-swap.tokenA.amount_human, swap.price_token_a_usdc);
-      });
-      const exitB = this.profiler.profileSync('exit_position', () =>
-        positionsB.exit(swap.tokenB.amount_human, swap.price_token_b_usdc),
-      );
-      swap.token_b_cost_usdc = exitB.entryCostUsdc;
-      swap.token_b_profit_usdc = exitB.profitUsdc;
-    } else {
-      this.profiler.profileSync('entry_position', () => {
-        positionsB.entry(-swap.tokenB.amount_human, swap.price_token_b_usdc);
-      });
-      const exitA = this.profiler.profileSync('exit_position', () =>
-        positionsA.exit(swap.tokenA.amount_human, swap.price_token_a_usdc),
-      );
-      swap.token_a_cost_usdc = exitA.entryCostUsdc;
-      swap.token_a_profit_usdc = exitA.profitUsdc;
+      if (swap.tokenA.amount_human < 0) {
+        this.profiler.profileSync('entry_position', () => {
+          positionsA.entry(-swap.tokenA.amount_human, swap.price_token_a_usdc);
+        });
+        const exitB = this.profiler.profileSync('exit_position', () =>
+          positionsB.exit(swap.tokenB.amount_human, swap.price_token_b_usdc),
+        );
+        swap.token_b_cost_usdc = exitB.entryCostUsdc;
+        swap.token_b_profit_usdc = exitB.profitUsdc;
+      } else {
+        this.profiler.profileSync('entry_position', () => {
+          positionsB.entry(-swap.tokenB.amount_human, swap.price_token_b_usdc);
+        });
+        const exitA = this.profiler.profileSync('exit_position', () =>
+          positionsA.exit(swap.tokenA.amount_human, swap.price_token_a_usdc),
+        );
+        swap.token_a_cost_usdc = exitA.entryCostUsdc;
+        swap.token_a_profit_usdc = exitA.profitUsdc;
+      }
+      swap.token_a_balance = positionsA.totalBalance;
+      swap.token_a_wins = positionsA.wins;
+      swap.token_a_loses = positionsA.loses;
+      swap.token_b_balance = positionsB.totalBalance;
+      swap.token_b_wins = positionsB.wins;
+      swap.token_b_loses = positionsB.loses;
     }
-    swap.token_a_balance = positionsA.totalBalance;
-    swap.token_a_wins = positionsA.wins;
-    swap.token_a_loses = positionsA.loses;
-    swap.token_b_balance = positionsB.totalBalance;
-    swap.token_b_wins = positionsB.wins;
-    swap.token_b_loses = positionsB.loses;
 
     return swap;
   }
@@ -395,11 +398,16 @@ export class PriceExtendStream {
       transform: async (swaps: EvmSwap[], controller) => {
         if (!this.firstTransformStarted) {
           this.firstTransformStarted = true;
-          this.logger.info('price_extend_stream: firstTransformStarted');
+          this.logger.info(
+            `price_extend_stream: firstTransformStarted. enableTopWallets: ${this.enableTopWallets}`,
+          );
         }
-        await this.profiler.profile('preloadMissingAccPos', () =>
-          this.preloadMissingAccountPositions(swaps),
-        );
+
+        if (this.enableTopWallets) {
+          await this.profiler.profile('preloadMissingAccPos', () =>
+            this.preloadMissingAccountPositions(swaps),
+          );
+        }
 
         const swapsRes: ExtendedEvmSwap[] = new Array(swaps.length);
 
