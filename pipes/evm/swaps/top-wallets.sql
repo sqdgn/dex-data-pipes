@@ -74,3 +74,38 @@ FROM top_traders(
 WHERE account = '0x8359870917b063fe2ee9aaec5af0ff1ea6caa149'
 
 */
+
+-- ############################################################################################################
+CREATE TABLE IF NOT EXISTS swaps_raw_account_gr
+(
+    timestamp           DateTime CODEC (DoubleDelta, ZSTD),
+    account            String,
+    token_a            String,
+    token_b            String,
+    amount_a           Float64,
+    amount_b           Float64,
+    price_token_a_usdc Float64,
+    price_token_b_usdc Float64,
+    transaction_index  UInt16,
+    log_index         UInt16,
+    sign              Int8
+) ENGINE = CollapsingMergeTree(sign)
+  PARTITION BY toYYYYMM(timestamp)
+  ORDER BY (account, timestamp, transaction_index, log_index);
+
+CREATE MATERIALIZED VIEW IF NOT EXISTS swaps_raw_account_gr_mv TO swaps_raw_account_gr
+AS
+SELECT
+    timestamp,
+    account,
+    token_a,
+    token_b,
+    amount_a,
+    amount_b,
+    price_token_a_usdc,
+    price_token_b_usdc,
+    transaction_index,
+    log_index,
+    sign
+FROM swaps_raw
+WHERE price_token_a_usdc > 0 AND price_token_b_usdc > 0;
