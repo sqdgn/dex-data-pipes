@@ -46,6 +46,12 @@ export const FactoryConfigs: Partial<
   },
 };
 
+export const V4PoolManagers: Partial<Record<Network, Partial<Record<DexName, string>>>> = {
+  base: {
+    uniswap: '0x498581ff718922c3f8e6a244956af099b2652b2b',
+  },
+};
+
 export const getFactoryAddressesByProtocol = (network: Network, protocol: DexProtocol) => {
   const res: string[] = [];
   for (const [net, dexes] of Object.entries(FactoryConfigs)) {

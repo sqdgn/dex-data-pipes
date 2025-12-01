@@ -2,13 +2,15 @@ import { events as UniswapV2FactoryEvents } from '../../../streams/evm_swaps/pro
 import { events as UniswapV2PairEvents } from '../../../streams/evm_swaps/protocols/uniswap.v2/swaps';
 import { events as UniswapV3FactoryEvents } from '../../../streams/evm_swaps/protocols/uniswap.v3/factory';
 import { events as UniswapV3PoolEvents } from '../../../streams/evm_swaps/protocols/uniswap.v3/swaps';
+import { events as UniswapV4PoolManagerEvents } from '../../../streams/evm_swaps/protocols/uniswap.v4/poolManager';
 import { events as AerodromeBasicPoolEvents } from '../../../streams/evm_swaps/protocols/aerodrome.basic/swaps';
 import { events as AerodromeBasicFactoryEvents } from '../../../streams/evm_swaps/protocols/aerodrome.basic/factory';
 import { events as AerodromeSlipstreamPoolEvents } from '../../../streams/evm_swaps/protocols/aerodrome.slipstream/swaps';
 import { events as AerodromeSlipstreamFactoryEvents } from '../../../streams/evm_swaps/protocols/aerodrome.slipstream/factory';
 import { evmDecoder, factory, factorySqliteDatabase } from '@subsquid/pipes/evm';
 import { Network } from 'streams/evm_swaps/networks';
-import { FactoryConfigs, getFactoryAddressesByProtocol } from './factories';
+import { FactoryConfigs, getFactoryAddressesByProtocol, V4PoolManagers } from './factories';
+import { typedEntries } from 'common/utils';
 
 const profiler = { id: 'evm-liquidity' };
 
@@ -42,7 +44,7 @@ export const createDecoders = async (
     // Pool fees are left in the pool but does not constitute pool TVL
     uniswapV3: evmDecoder({
       profiler,
-      range: { from: blockFrom },
+      range,
       contracts: factory({
         address: getFactoryAddressesByProtocol(network, 'uniswap_v3'),
         event: UniswapV3FactoryEvents.PoolCreated,
@@ -54,6 +56,19 @@ export const createDecoders = async (
         burns: UniswapV3PoolEvents.Burn,
         mints: UniswapV3PoolEvents.Mint,
         collects: UniswapV3PoolEvents.Collect,
+      },
+    }),
+
+    uniswapV4: evmDecoder({
+      profiler,
+      range,
+      contracts: typedEntries(V4PoolManagers[network]!)
+        .map(([, addr]) => addr)
+        .filter((a) => a !== undefined),
+      events: {
+        initializes: UniswapV4PoolManagerEvents.Initialize,
+        modifiesLiquidity: UniswapV4PoolManagerEvents.ModifyLiquidity,
+        swaps: UniswapV4PoolManagerEvents.Swap,
       },
     }),
 
