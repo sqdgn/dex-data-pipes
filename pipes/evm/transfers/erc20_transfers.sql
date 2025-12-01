@@ -28,8 +28,7 @@ CREATE TABLE IF NOT EXISTS erc20_holders
     holders			  UInt32
 ) ENGINE = MergeTree()
       PARTITION BY toYYYYMM(timestamp)
-      ORDER BY (token, timestamp)
-      TTL timestamp + INTERVAL 90 DAY;
+      ORDER BY (token, timestamp);
 
 
 -- Merge tree with no deduplication logic to speed up inserts.
