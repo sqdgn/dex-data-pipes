@@ -1,4 +1,5 @@
 import assert from 'assert';
+import { typedEntries } from '../../../common/utils';
 import { DexName, DexProtocol, Network } from 'streams/evm_swaps/networks';
 
 export type FactoryConfig = {
@@ -100,4 +101,12 @@ export const factoryAddressToDexName = (factoryAddress: string, network: Network
   }
 
   throw new Error(`Unknown factory address: ${factoryAddress}`);
+};
+
+export const poolManagerToDexName = (poolManager: string, network: Network) => {
+  const name = typedEntries(V4PoolManagers[network]!).find((d) => d[1] === poolManager)?.[0];
+  if (!name) {
+    throw new Error(`Unknown pool manager: ${poolManager}`);
+  }
+  return name;
 };

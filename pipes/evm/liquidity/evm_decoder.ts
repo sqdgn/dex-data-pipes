@@ -10,7 +10,7 @@ import { events as AerodromeSlipstreamFactoryEvents } from '../../../streams/evm
 import { evmDecoder, factory, factorySqliteDatabase } from '@subsquid/pipes/evm';
 import { Network } from 'streams/evm_swaps/networks';
 import { FactoryConfigs, getFactoryAddressesByProtocol, V4PoolManagers } from './factories';
-import { typedEntries } from 'common/utils';
+import { typedEntries } from '../../../common/utils';
 
 const profiler = { id: 'evm-liquidity' };
 

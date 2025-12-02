@@ -1,5 +1,5 @@
-import { AerodromeBasicData, RawLiquidityEvent, UniswapV2Data } from '../types';
-import { rawLiqEventToEvent } from './common';
+import { AerodromeBasicData, DbLiquidityEvent, UniswapV2Data } from '../types';
+import { decodedToDbLiqEvent } from './common';
 import { Network } from '../../../../streams/evm_swaps/networks';
 
 export const convertAerodromeBasic = (network: Network, { aerodromeBasic }: AerodromeBasicData) => {
@@ -38,6 +38,6 @@ export const convertAerodromeBasic = (network: Network, { aerodromeBasic }: Aero
     ...basic_swaps,
     ...basic_syncs,
   ];
-  const basic_res = basic.map((e) => rawLiqEventToEvent(e[0], e[1], network, 'aerodrome_basic'));
+  const basic_res = basic.map((e) => decodedToDbLiqEvent(e[0], e[1], network, 'aerodrome_basic'));
   return basic_res;
 };

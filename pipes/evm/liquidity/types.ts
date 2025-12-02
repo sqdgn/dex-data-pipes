@@ -4,9 +4,18 @@ import { CompositePipe } from '@subsquid/pipes';
 import { FactoryEvent } from '@subsquid/pipes/evm';
 import { LogFields } from 'node_modules/@subsquid/pipes/dist/portal-client/query/evm';
 
-export type LiqEventType = 'mint' | 'burn' | 'swap' | 'collect' | 'sync' | 'fees';
+export type LiqEventType =
+  | 'mint'
+  | 'burn'
+  | 'swap'
+  | 'collect'
+  | 'sync'
+  | 'fees'
+  | 'initialize_v4'
+  | 'modify_liquidity_v4';
 
-export type RawLiquidityEvent = {
+// event inserted in the DB, same structure
+export type DbLiquidityEvent = {
   timestamp: number;
   pool_address: string;
   event_type: LiqEventType;
@@ -14,6 +23,14 @@ export type RawLiquidityEvent = {
   token_b: string;
   amount_a_raw: bigint;
   amount_b_raw: bigint;
+  tick_spacing: number;
+  tick: number;
+  tick_lower: number;
+  tick_upper: number;
+  liquidity: bigint;
+  liquidity_delta: bigint;
+  sqrt_price_x96: bigint;
+  fee: number;
   factory_address: string;
   dex_name: DexName;
   protocol: DexProtocol;
@@ -25,7 +42,8 @@ export type RawLiquidityEvent = {
   sign: number;
 };
 
-export type LiqEvent = {
+// event provided by EVM decoder
+export type DecodedLiqEvent = {
   contract: string;
   timestamp: Date;
   event: {
@@ -38,6 +56,32 @@ export type LiqEvent = {
         readonly token1: string;
       }>
     | undefined;
+  rawEvent: LogFields;
+  block: {
+    number: number;
+  };
+};
+
+export type DecodedLiqEventV4 = {
+  contract: string;
+  timestamp: Date;
+  event: {
+    readonly id: string;
+    readonly sender?: string;
+    readonly amount0?: bigint;
+    readonly amount1?: bigint;
+    readonly sqrtPriceX96?: bigint;
+    readonly liquidity?: bigint;
+    readonly tick?: number;
+    readonly fee?: number;
+    readonly currency0?: string;
+    readonly currency1?: string;
+    readonly tickSpacing?: number;
+    readonly hooks?: string;
+    readonly tickLower?: number;
+    readonly tickUpper?: number;
+    readonly liquidityDelta?: bigint;
+  };
   rawEvent: LogFields;
   block: {
     number: number;

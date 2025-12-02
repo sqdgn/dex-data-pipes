@@ -1,5 +1,5 @@
-import { RawLiquidityEvent, UniswapV2Data } from '../types';
-import { rawLiqEventToEvent } from './common';
+import { DbLiquidityEvent, UniswapV2Data } from '../types';
+import { decodedToDbLiqEvent } from './common';
 import { Network } from '../../../../streams/evm_swaps/networks';
 
 export const convertV2 = (network: Network, { uniswapV2 }: UniswapV2Data) => {
@@ -38,8 +38,8 @@ export const convertV2 = (network: Network, { uniswapV2 }: UniswapV2Data) => {
     ...v2_swaps,
     ...v2_syncs,
   ];
-  const v2_res: RawLiquidityEvent[] = v2.map((e) =>
-    rawLiqEventToEvent(e[0], e[1], network, 'uniswap_v2'),
+  const v2_res: DbLiquidityEvent[] = v2.map((e) =>
+    decodedToDbLiqEvent(e[0], e[1], network, 'uniswap_v2'),
   );
   return v2_res;
 };

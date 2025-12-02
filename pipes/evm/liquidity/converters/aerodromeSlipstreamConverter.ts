@@ -1,10 +1,10 @@
 import {
   AerodromeBasicData,
   AerodromeSlipstreamData,
-  RawLiquidityEvent,
+  DbLiquidityEvent,
   UniswapV2Data,
 } from '../types';
-import { rawLiqEventToEvent } from './common';
+import { decodedToDbLiqEvent } from './common';
 import { Network } from '../../../../streams/evm_swaps/networks';
 
 export const convertAerodromeSlipstream = (
@@ -19,7 +19,7 @@ export const convertAerodromeSlipstream = (
     ...aerodromeSlipstream.collects.map((e) => [e, 'collect'] as const),
   ];
   const slipstream_res = slipstream.map((e) =>
-    rawLiqEventToEvent(e[0], e[1], network, 'aerodrome_slipstream'),
+    decodedToDbLiqEvent(e[0], e[1], network, 'aerodrome_slipstream'),
   );
   return slipstream_res;
 };

@@ -1,5 +1,5 @@
-import { RawLiquidityEvent, UniswapV3Data } from '../types';
-import { rawLiqEventToEvent } from './common';
+import { DbLiquidityEvent, UniswapV3Data } from '../types';
+import { decodedToDbLiqEvent } from './common';
 import { Network } from '../../../../streams/evm_swaps/networks';
 
 export const convertV3 = (network: Network, { uniswapV3 }: UniswapV3Data) => {
@@ -11,8 +11,8 @@ export const convertV3 = (network: Network, { uniswapV3 }: UniswapV3Data) => {
     ...uniswapV3.swaps.map((e) => [e, 'swap'] as const),
   ].filter((e) => e[0].event.amount0 || e[0].event.amount1);
 
-  const v3_res: RawLiquidityEvent[] = v3.map((e) =>
-    rawLiqEventToEvent(e[0], e[1], network, 'uniswap_v3'),
+  const v3_res: DbLiquidityEvent[] = v3.map((e) =>
+    decodedToDbLiqEvent(e[0], e[1], network, 'uniswap_v3'),
   );
   return v3_res;
 };
