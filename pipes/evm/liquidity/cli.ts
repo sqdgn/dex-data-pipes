@@ -34,6 +34,7 @@ async function main() {
   const portalSource = await createPortalSource(
     config.portal.url,
     process.env.PORTAL_CACHE_DB_PATH,
+    config.metricsPort,
   );
   const poolMetadataStorage = new PoolMetadataStorage(config.dbPath, config.network);
   const decoders = await createDecoders(config.network, config.dbPath, config.blockFrom);

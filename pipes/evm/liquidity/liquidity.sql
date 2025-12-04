@@ -26,10 +26,7 @@ CREATE TABLE IF NOT EXISTS liquidity_events_raw
     sign                Int8
 ) ENGINE = CollapsingMergeTree(sign)
       PARTITION BY toYYYYMM(timestamp)
-      ORDER BY (pool_address, timestamp, transaction_index, log_index)
-      TTL timestamp + INTERVAL 90 DAY;
-
-
+      ORDER BY (pool_address, timestamp, transaction_index, log_index);
 /*
 Data extraction:
 

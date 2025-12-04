@@ -2,12 +2,18 @@ import { evmPortalSource } from '@subsquid/pipes/evm';
 import { metricsServer } from '@subsquid/pipes/metrics/node';
 import { portalSqliteCache } from '@subsquid/pipes/portal-cache/node';
 
-export const createPortalSource = async (portal: string, portalCacheDbPath: string) =>
+export const createPortalSource = async (
+  portal: string,
+  portalCacheDbPath: string,
+  metricsPort: number,
+) =>
   evmPortalSource({
     portal,
-    metrics: metricsServer({
-      port: 8888,
-    }),
+    metrics: metricsPort
+      ? metricsServer({
+          port: metricsPort,
+        })
+      : undefined,
     cache: portalSqliteCache({
       path: portalCacheDbPath,
     }),

@@ -49,6 +49,7 @@ export function getConfig() {
     factory: CONTRACTS.factory[network],
     dbPath: process.env.DB_PATH,
     portal: process.env.PORTAL_URL ? { url: process.env.PORTAL_URL } : PORTAL[network],
+    metricsPort: process.env.METRICS_PORT ? parseInt(process.env.METRICS_PORT) : 0,
     blockFrom,
   };
 }
