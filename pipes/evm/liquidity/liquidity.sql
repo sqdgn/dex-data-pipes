@@ -113,4 +113,91 @@ FROM liq_history
 ORDER BY timestamp DESC
 LIMIT 10
 
+-- Protocol: Uniswap_v4
+WITH modify_liq AS (
+	SELECT
+		ml.*,
+		wp.*,
+		(wp.sqrt_price_x96 / POW(2, 96)) AS sqrtPrice,
+		toUnixTimestamp(ml.timestamp)*100_000*100_000 AS ts_num,
+		ml.tick_lower,
+		ml.tick_upper,
+		(SQRT(POW(1.0001, ml.tick_lower))) AS sqrtRatioL,
+		(SQRT(POW(1.0001, ml.tick_upper))) AS sqrtRatioU,
+		ml.liquidity_delta AS liquidityDelta,
+		toFloat64(liquidityDelta) AS liquidityDeltaF,		
+		CASE WHEN sqrtPrice <= sqrtRatioL THEN (liquidityDeltaF * (sqrtRatioU - sqrtRatioL)) / (sqrtRatioL*sqrtRatioU)
+			WHEN sqrtPrice >= sqrtRatioU THEN 0
+			ELSE liquidityDeltaF * ((sqrtRatioU - sqrtPrice)/(sqrtPrice*sqrtRatioU))
+		END as am0
+		, CASE WHEN sqrtPrice <= sqrtRatioL THEN 0
+			WHEN sqrtPrice >= sqrtRatioU THEN liquidityDeltaF*(sqrtRatioU - sqrtRatioL)
+			ELSE liquidityDeltaF*(sqrtPrice - sqrtRatioL)
+		END as am1,
+		IF (ml.event_type = 'modify_liquidity_v4', am1, am0) AS amount0,	-- |
+		IF (ml.event_type = 'modify_liquidity_v4', am0, am1) AS amount1		-- | swap amounts in case of modify_liquidity event
+	FROM base_liquidity_new.liquidity_events_raw ml
+		ASOF JOIN (
+			SELECT *, toUnixTimestamp(pp.timestamp)*100_000*100_000 AS ts_num
+			FROM base_liquidity_new.liquidity_events_raw pp
+			WHERE pp.pool_address = '0x4a292fa6d46678e8555260f206a577f6866586f43059e0d1e73e4b8cd4b99742'
+				AND (pp.event_type = 'swap' OR pp.event_type = 'initialize_v4')
+		) wp ON
+			wp.pool_address = ml.pool_address
+			AND (
+				wp.ts_num + wp.transaction_index*100_000 + wp.log_index 
+					<= 
+				ts_num + ml.transaction_index*100_000 + ml.log_index
+			)
+	WHERE ml.pool_address = '0x4a292fa6d46678e8555260f206a577f6866586f43059e0d1e73e4b8cd4b99742'
+),
+with_amounts AS (
+	SELECT
+		ml.*, 
+		COALESCE(NULLIF(toInt128(amount0), 0), amount_a_raw) AS delta_a_raw, 
+		COALESCE(NULLIF(toInt128(amount1), 0), amount_b_raw) AS delta_b_raw
+	FROM modify_liq ml
+),
+balance_history AS (
+	SELECT
+		wa.*,
+		SUM(delta_a_raw) OVER ( 
+	        ORDER BY timestamp, transaction_index, log_index
+	        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+	    ) AS token_a_balance,
+		SUM(delta_b_raw) OVER ( 
+	        ORDER BY timestamp, transaction_index, log_index
+	        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+	    ) AS token_b_balance
+	FROM with_amounts wa
+),
+prefinal AS (
+	SELECT 
+		bh.timestamp,
+		(bh.token_a_balance / POW(10, s.token_a_decimals)) AS amount_a,
+		(bh.token_b_balance / POW(10, s.token_b_decimals)) AS amount_b,
+		IF (s.price_token_a_usdc = 0, -1, amount_a * s.price_token_a_usdc) AS amount_a_usdc,
+		IF (s.price_token_b_usdc = 0, -1, amount_b * s.price_token_b_usdc) AS amount_b_usdc,
+		IF (amount_a_usdc = -1 OR amount_b_usdc = -1, -1, amount_a_usdc + amount_b_usdc) AS liquidity_usdc,
+		s.price_token_a_usdc AS price_token_a_usdc,
+		s.price_token_b_usdc AS price_token_b_usdc,	
+		bh.event_type,
+		bh.delta_a_raw,
+		bh.delta_b_raw,
+		bh.token_a_balance,
+		bh.token_b_balance,
+		bh.*
+	FROM balance_history bh
+		ASOF LEFT JOIN (
+			SELECT *
+			FROM base_swaps.swaps_raw_pool_gr s
+			WHERE pool_address = '0x4a292fa6d46678e8555260f206a577f6866586f43059e0d1e73e4b8cd4b99742'
+				AND price_token_a_usdc != 0	-- This should not happen, but should be removed after SQDGN-29 is fixed.
+		) s ON  s.pool_address = bh.pool_address
+			AND s.timestamp >= bh.timestamp
+)
+SELECT timestamp, liquidity_usdc, transaction_index, log_index
+FROM prefinal bh
+ORDER BY (bh.`timestamp`, bh.transaction_index, bh.log_index) DESC
+LIMIT 10
 */
