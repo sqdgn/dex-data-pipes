@@ -14,6 +14,7 @@ import { createDecoders } from './evm_decoder';
 import { createTarget } from './clickhouse_target';
 import { createPipeFunc } from './raw_liquidity_event_pipe';
 import assert from 'assert';
+import { PoolMetadataStorage } from '../../../streams/evm_swaps/pool_metadata_storage';
 
 const config = getConfig();
 
@@ -33,12 +34,14 @@ async function main() {
   const portalSource = await createPortalSource(
     config.portal.url,
     process.env.PORTAL_CACHE_DB_PATH,
+    config.metricsPort,
   );
-  const chTarget = await createTarget(client, logger);
+  const poolMetadataStorage = new PoolMetadataStorage(config.dbPath, config.network);
   const decoders = await createDecoders(config.network, config.dbPath, config.blockFrom);
+  const chTarget = await createTarget(client, logger);
   await portalSource
     .pipeComposite({ ...decoders })
-    .pipe(createPipeFunc(config.network))
+    .pipe(createPipeFunc(config.network, poolMetadataStorage))
     .pipeTo(chTarget);
 }
 

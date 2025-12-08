@@ -3,7 +3,6 @@ import { events as UniswapV3SwapEvents } from './protocols/uniswap.v3/swaps';
 import { events as UniswapV2FactoryEvents } from './protocols/uniswap.v2/factory';
 import { events as UniswapV2SwapEvents } from './protocols/uniswap.v2/swaps';
 import { events as UniswapV4PoolManagerEvents } from './protocols/uniswap.v4/poolManager';
-import { events as UniswapV4SwapEvents } from './protocols/uniswap.v4/swaps';
 import { events as AerodromeBasicFactoryEvents } from './protocols/aerodrome.basic/factory';
 import { events as AerodromeBasicSwapEvents } from './protocols/aerodrome.basic/swaps';
 import { events as AerodromeSlipstreamFactoryEvents } from './protocols/aerodrome.slipstream/factory';
@@ -95,7 +94,7 @@ const uniswapV4Protocol = (poolManagerAddress: string) =>
     poolManagerAddress,
     UniswapV4PoolManagerEvents.Initialize,
     handleUniswapV4Pool,
-    UniswapV4SwapEvents.Swap,
+    UniswapV4PoolManagerEvents.Swap,
     handleUniswapV4Swap,
   );
 

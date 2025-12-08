@@ -1,10 +1,9 @@
 import { DecodedEvmSwap } from '../../swap_types';
-import { events as UniswapV4SwapsEvents } from './swaps';
 import { events as UniswapV4PoolManagerEvents } from './poolManager';
 import { PoolMetadataSimple } from 'streams/evm_swaps/pool_metadata_storage';
 
 export const handleUniswapV4Swap = (log: any): DecodedEvmSwap | null => {
-  const data = UniswapV4SwapsEvents.Swap.decode(log);
+  const data = UniswapV4PoolManagerEvents.Swap.decode(log);
 
   return {
     from: {

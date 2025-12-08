@@ -1,4 +1,5 @@
 import assert from 'assert';
+import { typedEntries } from '../../../common/utils';
 import { DexName, DexProtocol, Network } from 'streams/evm_swaps/networks';
 
 export type FactoryConfig = {
@@ -43,6 +44,12 @@ export const FactoryConfigs: Partial<
         address: '0x1B8128c3A1B7D20053D10763ff02466ca7FF99FC',
       },
     },
+  },
+};
+
+export const V4PoolManagers: Partial<Record<Network, Partial<Record<DexName, string>>>> = {
+  base: {
+    uniswap: '0x498581ff718922c3f8e6a244956af099b2652b2b',
   },
 };
 
@@ -94,4 +101,12 @@ export const factoryAddressToDexName = (factoryAddress: string, network: Network
   }
 
   throw new Error(`Unknown factory address: ${factoryAddress}`);
+};
+
+export const poolManagerToDexName = (poolManager: string, network: Network) => {
+  const name = typedEntries(V4PoolManagers[network]!).find((d) => d[1] === poolManager)?.[0];
+  if (!name) {
+    throw new Error(`Unknown pool manager: ${poolManager}`);
+  }
+  return name;
 };
