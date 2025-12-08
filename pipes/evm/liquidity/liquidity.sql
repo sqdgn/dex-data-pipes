@@ -63,7 +63,7 @@ ORDER BY (timestamp, transaction_index, log_index) DESC
 LIMIT 10
 
 
--- uniswap_v3, aerodrome_slipstream
+-- protocol: uniswap_v3, aerodrome_slipstream
 -- there are problems with some pools ex. 0x06c522a75a0413269fae5069ff9b93d65c7c4b57, 0x5eeB2662615782b58251b6f0c3E107571ae1AB07
 WITH bal_history AS (
 	SELECT
@@ -113,7 +113,7 @@ FROM liq_history
 ORDER BY timestamp DESC
 LIMIT 10
 
--- Protocol: Uniswap_v4
+-- Protocol: uniswap_v4
 WITH modify_liq AS (
 	SELECT
 		ml.*,
