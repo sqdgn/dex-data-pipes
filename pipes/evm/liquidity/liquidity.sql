@@ -134,8 +134,9 @@ WITH modify_liq AS (
 			WHEN sqrtPrice >= sqrtRatioU THEN liquidityDeltaF*(sqrtRatioU - sqrtRatioL)
 			ELSE liquidityDeltaF*(sqrtPrice - sqrtRatioL)
 		END as am1,
-		IF (ml.event_type = 'modify_liquidity_v4', am1, am0) AS amount0,	-- |
-		IF (ml.event_type = 'modify_liquidity_v4', am0, am1) AS amount1		-- | swap amounts in case of modify_liquidity event
+		-- swap amounts in case of modify_liquidity event and when a <-> b were swapped
+		IF (ml.event_type = 'modify_liquidity_v4' AND ml.a_b_swapped = true, am1, am0) AS amount0,
+		IF (ml.event_type = 'modify_liquidity_v4' AND ml.a_b_swapped = true, am0, am1) AS amount1	
 	FROM base_liquidity_new.liquidity_events_raw ml
 		ASOF JOIN (
 			SELECT *, toUnixTimestamp(pp.timestamp)*100_000*100_000 AS ts_num
